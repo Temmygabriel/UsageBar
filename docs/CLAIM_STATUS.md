@@ -12,7 +12,8 @@ INFERRED   — follows from proven facts, but not directly demonstrated
 UNVERIFIED — not tested. This is the default. It is not a soft "probably fine".
 ```
 
-Last updated: **2026-10-05** (initial audit — no application code executed yet).
+Last updated: **2026-10-05** (devnet test token created and verified from chain
+readback; instruction-level facts established from the IDL and program source).
 
 ---
 
@@ -41,6 +42,48 @@ Verified by direct RPC query and by reading the current official sources on
 | MPP session is defined in an IETF draft with a 0.x SDK | PROVEN |
 | Devnet USDC mint `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`, 6 decimals, classic SPL Token | PROVEN |
 
+## Protocol — instruction-level facts — PROVEN
+
+Established 2026-10-05 by reading
+`program/payment_channels/idl/payment_channels.json` (a Codama root node,
+`standard: codama`, version 1.6.0) and the program source directly. These are
+**not** from documentation, and several correct or sharpen the build spec.
+
+| Claim | Status |
+|---|---|
+| `CHANNEL_SEED` is literally the byte string `b"channel"` | PROVEN |
+| Channel PDA seeds are `[b"channel", payer, payee, mint, authorized_signer, salt(u64 LE), open_slot(u64 LE), bump]` | PROVEN |
+| `open` takes 14 accounts: `payer`, `rentPayer`, `payee`, `mint`, `authorizedSigner`, `channel`, `payerTokenAccount`, `channelTokenAccount`, `tokenProgram`, `systemProgram`, `rent`, `associatedTokenProgram`, `eventAuthority`, `selfProgram` | PROVEN |
+| `payer` and `rentPayer` are the only signers on `open` | PROVEN |
+| `openArgs` = `{ salt: u64, deposit: u64, gracePeriod: u32, openSlot: u64, recipients: distributionEntry[] }` | PROVEN |
+| `distributionEntry` = `{ recipient: pubkey, bps: u16 }`, denominator 10,000 | PROVEN |
+| `channelTokenAccount` must be exactly `ATA(channel, mint, token_program)` (program error 51) | PROVEN |
+| `payerTokenAccount` must be exactly `ATA(payer, token_program, mint)` (program error 57) | PROVEN |
+| The channel PDA must match the derived address exactly (program error 50) | PROVEN |
+| The **`settle` instruction carries no voucher argument** — its only accounts are `channel` and `instructionsSysvar` | PROVEN |
+| Settlement therefore *must* pass the voucher via the instructions sysvar, i.e. the Ed25519 precompile in the same transaction | PROVEN |
+| `distribute` requires a `treasuryTokenAccount`, validated as `ATA(TREASURY_OWNER, mint, token_program)` | PROVEN |
+| `OPEN_SLOT_WINDOW` is 1,500 slots and is consensus-critical in the *decreasing* direction only | PROVEN |
+| The `open` transaction must land within the window of its client-chosen `openSlot`, which is a PDA seed — missing it changes the channel address | PROVEN |
+| The program has 65 documented error codes; 50–58 cover channel and token-account mismatches | PROVEN |
+| The deployed program emits `opened` and `payoutRedirected` events via an `eventAuthority` PDA | PROVEN |
+
+## UsageBar infrastructure — PROVEN
+
+Verified 2026-10-05 by chain readback. Detail in
+[`ASSET_PROVENANCE.md`](ASSET_PROVENANCE.md).
+
+| Claim | Status |
+|---|---|
+| A devnet test mint we control exists at `6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL` | PROVEN |
+| It is a **classic SPL Token** mint, not Token-2022 | PROVEN |
+| It has 6 decimals | PROVEN |
+| Its supply of 1,000,000.000000 TEST is held by the devnet test payer | PROVEN |
+| Its mint authority is the devnet test payer, and its freeze authority is unset | PROVEN |
+| A devnet keypair can sign and land a transaction on devnet from this repository | PROVEN |
+| GitHub Actions can sign and send a devnet transaction using a repository secret | PROVEN |
+| No private key is committed; `local-wallet/` is gitignored and verified invisible to git | PROVEN |
+
 ## UsageBar — UNVERIFIED
 
 **None of the following has been attempted.** This is the honest position.
@@ -53,7 +96,7 @@ Verified by direct RPC query and by reading the current official sources on
 | UsageBar can call `settle_and_seal` on Devnet | UNVERIFIED |
 | UsageBar can call `distribute` on Devnet | UNVERIFIED |
 | The unused remainder is actually recoverable by the payer | UNVERIFIED |
-| The devnet deployment accepts `distribute` given the placeholder treasury config in source | UNVERIFIED |
+| The devnet deployment accepts `distribute` despite the placeholder treasury owner | UNVERIFIED — the source cannot compile with `--features devnet` at all (build-time assert rejects the `0xBEEF` sentinel), so the live program was built differently and very likely carries that placeholder. Untested. Detail in [`ASSET_PROVENANCE.md`](ASSET_PROVENANCE.md). |
 | The canonical run `canonical-usagebar-devnet-001` completes | UNVERIFIED |
 | The verifier passes against real evidence | UNVERIFIED |
 | The application deploys to Vercel and reaches devnet RPC | UNVERIFIED |

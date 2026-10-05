@@ -253,20 +253,24 @@ export const BPS_DENOMINATOR = 10_000;
 export const MAX_DISTRIBUTION_RECIPIENTS = 32;
 
 /**
- * The treasury owner the live devnet program almost certainly uses.
+ * The treasury owner the live devnet program actually uses.
  *
- * `constants.rs` defines this as `TREASURY_OWNER_SENTINEL` — the bytes
- * `0xBE,0xEF` repeated 16 times. The `devnet` configuration block assigns
- * exactly this sentinel, and a build-time assert then *rejects* it for any
- * devnet build. So the published source cannot be compiled for devnet at all,
- * which means the deployed program was built without the `devnet` feature and
- * fell through to the localnet/default block — which sets the same sentinel.
+ * Established by forensics, not by inference. `constants.rs` selects a
+ * per-cluster owner via mutually-exclusive Cargo features, and the `devnet`
+ * block pins `4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap` — which is also
+ * the program's upgrade authority, so there is no separate treasury key to
+ * manage. Decoding that pubkey and searching the deployed ProgramData ELF
+ * finds those exact 32 bytes at byte offset 61435.
  *
- * The consequence: nobody holds this key, so anything that lands in its token
- * account is permanently unspendable. It is only rounding dust, but it must
- * not be presented as recoverable. Overridable so that a corrected deployment
- * needs no code change.
+ * The sentinel below is the alternative and is what a build WITHOUT the
+ * `devnet` feature would carry. It was searched for and is ABSENT from the
+ * deployed program, which is what first disproved the earlier guess that the
+ * live program had fallen through to the localnet/default block. Recorded here
+ * because "the treasury is a placeholder nobody can spend" is a real hazard
+ * worth being able to check against, not because it applies to this deployment.
  */
+export const DEVNET_TREASURY_OWNER = "4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap";
+
 export const TREASURY_OWNER_SENTINEL_HEX =
   "beefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeef";
 

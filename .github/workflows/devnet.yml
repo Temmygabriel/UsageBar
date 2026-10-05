@@ -44,7 +44,7 @@ on:
         required: false
         default: "21500000"
       treasury_owner:
-        description: "close only: leave blank to use the 0xBEEF placeholder the deployed program carries."
+        description: "close only: leave blank to use the owner the deployed program carries (4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap)."
         type: string
         required: false
         default: ""

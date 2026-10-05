@@ -154,26 +154,43 @@ Recorded because the causes are easy to hit again.
 | 1 | `Expected base58-encoded address string... Actual length: 15` | A signer *object* was passed where a raw instruction account needs a plain address. The codec stringified it to `"[object Object]"` — 15 characters. |
 | 2 | `custom program error: 0xc9` | `0xc9` = 201 = `gracePeriodMustBeNonZero`. The grace period was passed as `0`. |
 | 3 | passed | — |
+| 4 | `Expected base58-encoded address string... Actual length: 0` | A GitHub Actions workflow exports a **cleared optional input as `NAME=""`** — defined-but-empty, so `??` kept the empty string and `address("")` threw. Fixed at the root with an `envOr()` helper that treats blank as absent, now used for every env read. No transaction had been sent. |
+| 5 | `custom program error: 0x961` | `0x961` = 2401 = `TreasuryAccountMismatch`. The treasury owner was guessed wrong. Refuted the placeholder hypothesis — see *Known risks*. No token moved; `distribute` validates the ATA before transferring. |
 
 ---
 
 ## Known risks
 
-### The treasury owner — unresolved, blocks `distribute`
+### The treasury owner — RESOLVED
 
-The program source contains a build-time assert that **rejects the `0xBEEF`
-treasury sentinel**, and the `devnet` configuration block sets exactly that
-sentinel. So the published source cannot be compiled for devnet at all, which
-means the live devnet program was built some other way and very likely carries
-the placeholder.
+**Finding:** the deployed devnet program's treasury owner is
+`4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap`, which is also the program's
+upgrade authority.
 
-`distribute` pays rounding residuals to `ATA(TREASURY_OWNER, mint, ...)`. If the
-placeholder is in force, that address is derivable and its token account can be
-created — so `distribute` may still work — but anything sent there is
-permanently unspendable.
+**How it was settled.** An earlier hypothesis said the live program carried the
+0xBEEF placeholder, on the reasoning that a build-time assert rejects that
+sentinel for `devnet` builds, so the published source looked uncompilable for
+devnet — implying the deployed binary had fallen through to the
+localnet/default block. Running `distribute` **refuted this**: it failed with
+`custom program error: 0x961` = **2401 `TreasuryAccountMismatch`**, before any
+token moved.
 
-**This is a hypothesis, not a finding.** It is settled by running `distribute`
-against devnet. Detail in [`docs/ASSET_PROVENANCE.md`](docs/ASSET_PROVENANCE.md).
+Searching the deployed ProgramData ELF for each candidate's raw 32 bytes found
+the answer directly:
+
+| Candidate | Source | In the deployed ELF? |
+|---|---|---|
+| `0xBEEF` sentinel | localnet / default block | **absent** |
+| `Cs2zdfUNonRdRGsiZUQQLdTxzxVvJZmgiX2mpLYKuEqP` | `mainnet-beta` block | **absent** |
+| `4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap` | `devnet` block on branch `build/devnet-deployment` | **present, ELF byte offset 61435** |
+
+The real value exists only on `build/devnet-deployment`, a branch that is
+neither on `main` nor tagged — which is why reading `constants.rs` at `v1.0.0`
+or `main` showed the sentinel and misled the first reading.
+
+**Why this matters beyond the address:** it is the upgrade authority, so there
+is no separate treasury key to manage, and residual dust is recoverable rather
+than burned.
 
 ### Time
 
@@ -183,14 +200,13 @@ Seven days remain, and the application has not been started.
 
 ## Next steps
 
-1. Run `settleAndSeal` (discriminator 4). This is a different instruction from
-   the `settle` just proven, and it additionally requires the **payee's**
-   signature.
-2. Run `distribute`, and find out what the treasury situation really is.
-3. Confirm the unused remainder actually reaches the payer. `distribute` has a
+1. Re-run `close`. `settleAndSeal` already succeeded, so the script now detects
+   a SEALED channel and resumes at `distribute` rather than demanding a fresh
+   one.
+2. Confirm the unused remainder actually reaches the payer. `distribute` has a
    `payerTokenAccount` among its writable accounts and `withdrawPayer`
    (discriminator 8) is the pull path, but neither has been executed.
-4. Build the interface.
+3. Build the interface.
 
 ## Deliberately not done yet
 
@@ -212,6 +228,7 @@ free RAM and `npm install` hangs on it. Everything runs in GitHub Actions.
 | Create the test token | Actions → **Devnet** → `test-token` |
 | Open a channel | Actions → **Devnet** → `open-channel` |
 | Settle with a voucher | Actions → **Devnet** → `settle` |
+| Seal and pay out | Actions → **Devnet** → `close` |
 
 The Devnet workflow is manual-trigger only, because it reads private keys from
 repository secrets.

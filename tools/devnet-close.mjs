@@ -16,10 +16,10 @@
  *      treasury. On a channel older than OPEN_SLOT_WINDOW the channel account
  *      is deallocated entirely and its rent returns to the rent payer.
  *
- * It also settles a question that has been open since the audit: what the
- * devnet treasury owner actually is. See TREASURY_OWNER_SENTINEL_HEX in
- * tools/lib/protocol.mjs. The short version is that the live program very
- * likely carries a placeholder, and the dust that lands there is unspendable.
+ * The treasury owner is now known rather than guessed: it is
+ * `4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap`, the same key that holds the
+ * program's upgrade authority, recovered by finding those bytes in the
+ * deployed program's ELF. See DEVNET_TREASURY_OWNER in tools/lib/protocol.mjs.
  *
  * Nothing here is simulated. Balances are read from chain before and after.
  */
@@ -47,12 +47,11 @@ import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/t
 
 import {
   CHANNEL_STATUS,
+  DEVNET_TREASURY_OWNER,
   DISCRIMINATOR,
   ED25519_PRECOMPILE,
   INSTRUCTIONS_SYSVAR,
   PAYMENT_CHANNELS_PROGRAM,
-  TREASURY_OWNER_SENTINEL_HEX,
-  base58Encode,
   buildEd25519PrecompileData,
   buildVoucherPayload,
   decodeChannel,
@@ -86,12 +85,13 @@ const FINAL_CUMULATIVE = BigInt(envOr("FINAL_CUMULATIVE", "21500000"));
 const EXPIRES_AT = BigInt(envOr("EXPIRES_AT", "0"));
 
 /**
- * The treasury owner. Blank (the workflow's default) means the 0xBEEF
- * placeholder the deployed program almost certainly carries; override with
- * TREASURY_OWNER once the program ships a real one.
+ * The treasury owner. Blank (the workflow's default) means the address the
+ * deployed program actually carries — see DEVNET_TREASURY_OWNER in
+ * tools/lib/protocol.mjs, which was recovered from the deployed ELF rather
+ * than guessed.
  */
 const TREASURY_OWNER_INPUT = envOr("TREASURY_OWNER", "");
-const USING_PLACEHOLDER_TREASURY = TREASURY_OWNER_INPUT === "";
+const USING_DEFAULT_TREASURY = TREASURY_OWNER_INPUT === "";
 
 const DECIMALS = 6;
 const format = (atomic) => `${Number(atomic) / 10 ** DECIMALS} TEST`;
@@ -153,17 +153,30 @@ console.log(`    settled   : ${format(channel.settled)}`);
 console.log(`    openSlot  : ${channel.openSlot}`);
 console.log("");
 
-if (channel.status !== 0) {
+/**
+ * A close is two instructions, and they can be run in separate attempts: if
+ * `settleAndSeal` lands but `distribute` fails, the channel is left SEALED and
+ * re-running the whole script would trip the "already sealed" guard. So treat
+ * SEALED as "step 1 already done" and go straight to the payout, rather than
+ * requiring the operator to re-open a fresh channel to retry step 2.
+ */
+const NEEDS_SEAL = channel.status === 0;
+
+if (!NEEDS_SEAL && channel.status !== 1) {
   throw new Error(
-    `Channel status is ${channel.status} (${CHANNEL_STATUS[channel.status]}); expected 0 (Open). ` +
-      "A previous run may have already sealed it.",
+    `Channel status is ${channel.status} (${CHANNEL_STATUS[channel.status]}); expected 0 (Open) ` +
+      "or 1 (Sealed). A status of 3 (Distributed) means this close already completed.",
   );
 }
-if (payee.address !== channel.payee) {
+if (NEEDS_SEAL && payee.address !== channel.payee) {
   throw new Error(
     `DEVNET_PAYEE_KEYPAIR derives to ${payee.address}, but the channel's payee is ` +
       `${channel.payee}. settleAndSeal requires the payee to sign.`,
   );
+}
+if (!NEEDS_SEAL) {
+  console.log(`    already SEALED — step 1 is done, resuming at the payout`);
+  console.log("");
 }
 
 const [payerTokenAccount] = await findAssociatedTokenPda({
@@ -183,13 +196,10 @@ const [payeeTokenAccount] = await findAssociatedTokenPda({
 });
 
 /**
- * The treasury owner. Defaults to the 0xBEEF placeholder when the input is
- * blank.
+ * The treasury owner. Defaults to the address the deployed program carries.
  */
 const TREASURY_OWNER = address(
-  USING_PLACEHOLDER_TREASURY
-    ? base58Encode(Buffer.from(TREASURY_OWNER_SENTINEL_HEX, "hex"))
-    : TREASURY_OWNER_INPUT,
+  USING_DEFAULT_TREASURY ? DEVNET_TREASURY_OWNER : TREASURY_OWNER_INPUT,
 );
 const [treasuryTokenAccount] = await findAssociatedTokenPda({
   owner: TREASURY_OWNER,
@@ -225,57 +235,57 @@ console.log("");
 // STEP 1 — settleAndSeal
 // ===========================================================================
 
-if (FINAL_CUMULATIVE <= channel.settled) {
-  throw new Error(
-    `FINAL_CUMULATIVE is ${FINAL_CUMULATIVE} but the watermark is already ${channel.settled}. ` +
-      "A voucher must strictly advance it -> error 234 (voucherWatermarkNotMonotonic).",
-  );
-}
-if (FINAL_CUMULATIVE > channel.deposit) {
-  throw new Error(
-    `FINAL_CUMULATIVE is ${FINAL_CUMULATIVE}, over the ${channel.deposit} deposit ` +
-      "-> error 235 (voucherOverDeposit).",
-  );
-}
-if (EXPIRES_AT !== 0n && BigInt(Math.floor(Date.now() / 1000)) >= EXPIRES_AT) {
-  throw new Error(`expires_at ${EXPIRES_AT} is not in the future -> error 233 (voucherExpired).`);
-}
+if (NEEDS_SEAL) {
+  if (FINAL_CUMULATIVE <= channel.settled) {
+    throw new Error(
+      `FINAL_CUMULATIVE is ${FINAL_CUMULATIVE} but the watermark is already ${channel.settled}. ` +
+        "A voucher must strictly advance it -> error 234 (voucherWatermarkNotMonotonic).",
+    );
+  }
+  if (FINAL_CUMULATIVE > channel.deposit) {
+    throw new Error(
+      `FINAL_CUMULATIVE is ${FINAL_CUMULATIVE}, over the ${channel.deposit} deposit ` +
+        "-> error 235 (voucherOverDeposit).",
+    );
+  }
+  if (EXPIRES_AT !== 0n && BigInt(Math.floor(Date.now() / 1000)) >= EXPIRES_AT) {
+    throw new Error(`expires_at ${EXPIRES_AT} is not in the future -> error 233 (voucherExpired).`);
+  }
 
-console.log(`  STEP 1: settleAndSeal at ${format(FINAL_CUMULATIVE)} (payee-signed)`);
+  console.log(`  STEP 1: settleAndSeal at ${format(FINAL_CUMULATIVE)} (payee-signed)`);
 
-const voucherPayload = buildVoucherPayload(addressEncoder, CHANNEL, FINAL_CUMULATIVE, EXPIRES_AT);
-const { signature: voucherSignature, publicKey } = await signVoucher(operatorSeed, voucherPayload);
+  const voucherPayload = buildVoucherPayload(addressEncoder, CHANNEL, FINAL_CUMULATIVE, EXPIRES_AT);
+  const { signature: voucherSignature, publicKey } = await signVoucher(operatorSeed, voucherPayload);
 
-if (addressDecoder.decode(publicKey) !== channel.authorizedSigner) {
-  throw new Error(
-    `Operator key derives to ${addressDecoder.decode(publicKey)}, but the channel's ` +
-      `authorized_signer is ${channel.authorizedSigner} -> error 237 (voucherSignerMismatch).`,
-  );
-}
+  if (addressDecoder.decode(publicKey) !== channel.authorizedSigner) {
+    throw new Error(
+      `Operator key derives to ${addressDecoder.decode(publicKey)}, but the channel's ` +
+        `authorized_signer is ${channel.authorizedSigner} -> error 237 (voucherSignerMismatch).`,
+    );
+  }
 
-console.log(`    voucher   : ${Buffer.from(voucherPayload).toString("hex")}`);
+  console.log(`    voucher   : ${Buffer.from(voucherPayload).toString("hex")}`);
 
-const precompileInstruction = {
-  programAddress: address(ED25519_PRECOMPILE),
-  accounts: [],
-  data: buildEd25519PrecompileData(publicKey, voucherSignature, voucherPayload),
-};
+  const precompileInstruction = {
+    programAddress: address(ED25519_PRECOMPILE),
+    accounts: [],
+    data: buildEd25519PrecompileData(publicKey, voucherSignature, voucherPayload),
+  };
 
-const settleAndSealInstruction = {
-  programAddress: address(PAYMENT_CHANNELS_PROGRAM),
-  accounts: [
-    // The payee is the authority here — this is the cooperative close. The
-    // `signer` property is what lets the kit sign with it; passing a bare
-    // signer object as `address` is what produced the earlier
-    // "[object Object]" base58 error.
-    { address: payee.address, role: AccountRole.READONLY_SIGNER, signer: payee },
-    { address: CHANNEL, role: AccountRole.WRITABLE },
-    { address: address(INSTRUCTIONS_SYSVAR), role: AccountRole.READONLY },
-  ],
-  data: encodeSettleAndSealData(true),
-};
+  const settleAndSealInstruction = {
+    programAddress: address(PAYMENT_CHANNELS_PROGRAM),
+    accounts: [
+      // The payee is the authority here — this is the cooperative close. The
+      // `signer` property is what lets the kit sign with it; passing a bare
+      // signer object as `address` is what produced the earlier
+      // "[object Object]" base58 error.
+      { address: payee.address, role: AccountRole.READONLY_SIGNER, signer: payee },
+      { address: CHANNEL, role: AccountRole.WRITABLE },
+      { address: address(INSTRUCTIONS_SYSVAR), role: AccountRole.READONLY },
+    ],
+    data: encodeSettleAndSealData(true),
+  };
 
-{
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
   const message = pipe(
     createTransactionMessage({ version: 0 }),
@@ -340,11 +350,12 @@ console.log("");
 
 console.log(`    treasury owner     : ${TREASURY_OWNER}`);
 console.log(`    treasury token acct: ${treasuryTokenAccount}`);
-if (USING_PLACEHOLDER_TREASURY) {
+if (USING_DEFAULT_TREASURY) {
   console.log("");
-  console.log("    NOTE: this is the 0xBEEF placeholder from constants.rs, not a real");
-  console.log("    owner. Any dust sent there is permanently unspendable. Whether the");
-  console.log("    deployed program agrees is exactly what this step tests.");
+  console.log("    This is the address the deployed program carries (recovered from its");
+  console.log("    ELF at byte offset 61435, not guessed). `distribute` derives the ATA");
+  console.log("    itself and compares, so a mismatch here fails with 2401 before any");
+  console.log("    token moves — which is exactly how the earlier wrong guess was caught.");
 }
 console.log("");
 
@@ -452,10 +463,10 @@ console.log(`    escrow drained to zero       : ${escrowEmptied ? "yes" : "NO"}`
 console.log("");
 
 const problems = [];
-if (payeeReceived !== FINAL_CUMULATIVE - channel.settled) {
+if (payeeReceived !== FINAL_CUMULATIVE - channel.payoutWatermark) {
   problems.push(
-    `the payee received ${payeeReceived}, expected the settled delta ` +
-      `${FINAL_CUMULATIVE - channel.settled}`,
+    `the payee received ${payeeReceived}, expected the settled delta over the payout ` +
+      `watermark ${FINAL_CUMULATIVE - channel.payoutWatermark}`,
   );
 }
 if (payerReceived !== channel.deposit - FINAL_CUMULATIVE) {

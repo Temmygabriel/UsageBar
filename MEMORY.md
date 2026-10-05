@@ -38,6 +38,7 @@ Note: spec Section 108 ("you may now begin implementation") contradicts Section
 | Payee | `8spx4F7VCCHdCoGux1FuLhx4z3ebAUvJxnhNBB7rjqcc` |
 | Operator (`authorized_signer`) | `39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T` |
 | Open channel (first, salt 1) | `7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo` |
+| Treasury owner (devnet) | `4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap` (also the upgrade authority) |
 
 Classic SPL Token (`Tokenkeg...`), chosen over Token-2022 deliberately: the
 program restricts Token-2022 to an extension allow-list, and a plain mint
@@ -47,10 +48,14 @@ cannot trip it.
 
 `salt 1`, `openSlot 507695832`, `bump 254`, deposit 50 TEST, grace period 60s.
 
-As of 2026-10-05: **status Open, settled 18.9 TEST, payoutWatermark 0**, so
-31.1 TEST remains escrowed. This is a *live, mutable* value — re-read it from
-chain rather than trusting this line. `settled` sits at **byte offset 20** of
-the 256-byte account (u64 LE), which is the quickest way to check by hand.
+As of 2026-10-05: **status SEALED (1), settled 21.5 TEST, payoutWatermark 0**.
+`settleAndSeal` landed successfully, so **28.5 TEST of unused deposit is owed
+back to the payer** and 21.5 TEST to the payee. Both move on `distribute`. This
+is a *live, mutable* value — re-read it from chain rather than trusting this
+line.
+
+`settled` sits at **byte offset 20** of the 256-byte account (u64 LE), which is
+the quickest way to check by hand. `status` is byte offset 3.
 
 ### Three distinct keys, easily confused
 
@@ -197,6 +202,16 @@ Detail in `docs/CLAIM_STATUS.md`.
 - **Voucher guards, and the error each produces:** magic (238), channel id (232),
   expiry (233), `cumulative > settled` strictly (234), `cumulative <= deposit`
   (235), signer == `authorized_signer` (237).
+- **The payout split is deltas against `payout_watermark`, not `settled`.**
+  `distribute` computes each share as
+  `floor(settled * bps / 10_000) - floor(payout_watermark * bps / 10_000)`, and
+  with no recipients the payee takes the whole remainder (`payee_bps` =
+  10,000). So the payee receives `settled - payout_watermark` and, on SEALED,
+  the payer is refunded `deposit - settled`. **Asserting the payee gets
+  `settled - <watermark at the start of the run>` is the easy mistake** — using
+  the channel's `settled` field as the subtrahend is wrong whenever the seal
+  and the payout happen in different runs, because the seal has already moved
+  `settled`.
 - `Ed25519SigVerify111111111111111111111111111` is the precompile;
   `Sysvar1nstructions1111111111111111111111111` is the Instructions sysvar.
 
@@ -222,18 +237,33 @@ Gate 1 reproduction path. Migrate it only with a way to re-verify.
 
 ---
 
-## Unresolved risk: the treasury owner
+## Resolved: the treasury owner
 
-A build-time assert rejects the `0xBEEF` treasury sentinel, and the `devnet`
-config block sets exactly that sentinel. **The published source therefore cannot
-compile for devnet at all**, meaning the live devnet program was built some
-other way and very likely carries the placeholder.
+**The deployed devnet program's treasury owner is
+`4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap`** — the same key that holds the
+program's upgrade authority.
 
-If so, `distribute` can still pay into `ATA(TREASURY_OWNER, mint, ...)` — anyone
-may create that account — but the residual is unspendable forever, because no
-one holds the key.
+Established by **binary forensics, not inference**. `constants.rs` picks a
+per-cluster owner through mutually-exclusive Cargo features; the `devnet` block
+on branch `build/devnet-deployment` pins that address. Decoding it and
+searching the deployed ProgramData ELF (`CghQXkmw2F6p1exMETiZdNeUx9QGraWsNZ4eom1Cuiw1`,
+66,240-byte ELF) finds those exact 32 bytes **at ELF byte offset 61435**. The
+0xBEEF sentinel and the mainnet owner `Cs2zdfUNonRdRGsiZUQQLdTxzxVvJZmgiX2mpLYKuEqP`
+are both **absent**.
 
-**Hypothesis, not finding.** Settled by running `distribute` against devnet.
+History worth remembering, because the reasoning error is instructive:
+`constants.rs` carries a build-time assert that *rejects* the 0xBEEF sentinel
+for any `devnet` build, with a `// TODO: real devnet owner` beside the sentinel
+in every block. From the `v1.0.0` tag and `main`, the devnet block genuinely
+does still hold the sentinel — so it looked as though the published source could
+not compile for devnet at all, and the live program must have fallen through to
+the placeholder. That was **wrong**, and a `distribute` attempt refuted it with
+error **2401 `TreasuryAccountMismatch`**. The real value lives only on the
+`build/devnet-deployment` branch, which is not on `main` and not tagged.
+
+The lesson: three candidate values existed across refs and only one was right.
+Read the deployed bytes rather than reasoning about which branch "should" have
+shipped.
 
 ---
 

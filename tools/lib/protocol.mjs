@@ -346,6 +346,59 @@ export function encodeDistributeData(addressEncoder, entries) {
 }
 
 // ---------------------------------------------------------------------------
+// Associated Token Account creation
+//
+// `distribute` validates the payee's and the treasury's canonical ATAs and
+// fails with 2402 (`InvalidTreasuryTokenAccount`) or 2404/2405 if one is
+// missing. Neither account exists on a first run, so a caller must create them.
+//
+// Built by hand rather than with @solana-program/token's helper because the
+// instruction is small, its layout is fixed by the Associated Token Program
+// itself, and hand-rolling avoids guessing an export name that cannot be
+// checked on this machine (the Solana packages are installed only in CI).
+// `tests/voucher-encoding.test.js` pins the bytes.
+// ---------------------------------------------------------------------------
+
+/**
+ * The `CreateIdempotent` variant of the ATA program's single instruction. The
+ * discriminator is `1`; plain `Create` is `0` and fails if the account already
+ * exists, which makes it useless for a retryable close.
+ */
+export const ATA_CREATE_IDEMPOTENT = 1;
+
+/**
+ * Accounts, in the order the ATA program requires:
+ *   payer (signer, writable), ata (writable), owner, mint, system, token
+ *
+ * `AccountRole` is passed in rather than imported: this module has no
+ * dependencies on purpose, so it can be used from a test or a script without
+ * an install. `payer` must also be the transaction's fee payer, and its signer
+ * object is carried through so the kit can sign with it.
+ */
+export function buildCreateAtaIdempotentInstruction({
+  payer,
+  payerSigner,
+  ata,
+  owner,
+  mint,
+  tokenProgram,
+  AccountRole,
+}) {
+  return {
+    programAddress: ASSOCIATED_TOKEN_PROGRAM,
+    accounts: [
+      { address: payer, role: AccountRole.WRITABLE_SIGNER, signer: payerSigner },
+      { address: ata, role: AccountRole.WRITABLE },
+      { address: owner, role: AccountRole.READONLY },
+      { address: mint, role: AccountRole.READONLY },
+      { address: SYSTEM_PROGRAM, role: AccountRole.READONLY },
+      { address: tokenProgram, role: AccountRole.READONLY },
+    ],
+    data: new Uint8Array([ATA_CREATE_IDEMPOTENT]),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Secret handling
 //
 // Secrets are read from the environment and never logged. Only public

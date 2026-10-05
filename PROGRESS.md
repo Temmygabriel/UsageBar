@@ -156,6 +156,7 @@ Recorded because the causes are easy to hit again.
 | 3 | passed | — |
 | 4 | `Expected base58-encoded address string... Actual length: 0` | A GitHub Actions workflow exports a **cleared optional input as `NAME=""`** — defined-but-empty, so `??` kept the empty string and `address("")` threw. Fixed at the root with an `envOr()` helper that treats blank as absent, now used for every env read. No transaction had been sent. |
 | 5 | `custom program error: 0x961` | `0x961` = 2401 = `TreasuryAccountMismatch`. The treasury owner was guessed wrong. Refuted the placeholder hypothesis — see *Known risks*. No token moved; `distribute` validates the ATA before transferring. |
+| 6 | `custom program error: 0x962` | `0x962` = 2402 = `InvalidTreasuryTokenAccount`. Progress: the owner address now passes (2401 is gone), but the treasury's *token account* does not exist. Neither does the payee's. `distribute` requires both. Fixed by prepending idempotent ATA creation. Again no token moved. |
 
 ---
 

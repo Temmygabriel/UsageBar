@@ -157,7 +157,14 @@ Detail in `docs/CLAIM_STATUS.md`.
   Missing the window changes the channel address and forces a re-sign.
 - **A channel cannot fully close until `slot > open_slot + 1500`** (error 2414).
 - **`distribute` needs a treasury account** — `ATA(TREASURY_OWNER, mint, token_program)`,
-  error 2401. See the treasury risk below.
+  error 2401 (`TreasuryAccountMismatch`) when the *owner* is wrong and 2402
+  (`InvalidTreasuryTokenAccount`) when the owner is right but the *account*
+  does not exist. **The ATAs must exist before `distribute` runs**; the payee's
+  is validated too (2404/2405). Create them idempotently first — anyone may
+  create `ATA(owner, mint, token_program)`, the account belongs to that owner,
+  and the only cost is rent. `tools/lib/protocol.mjs` has the builder.
+  Distinguishing 2401 from 2402 is the fastest way to tell "wrong owner" from
+  "owner right, account missing".
 - **A channel is exactly 256 bytes**, matching `Channel::LEN`.
 - **`open` discriminator is `1`**; instruction data is
   `[1] + salt(u64) + deposit(u64) + gracePeriod(u32) + openSlot(u64) + count(u32) + entries{recipient:pubkey, bps:u16}`.

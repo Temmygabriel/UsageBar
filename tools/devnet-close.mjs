@@ -53,6 +53,7 @@ import {
   INSTRUCTIONS_SYSVAR,
   PAYMENT_CHANNELS_PROGRAM,
   buildEd25519PrecompileData,
+  buildCreateAtaIdempotentInstruction,
   buildVoucherPayload,
   decodeChannel,
   decodeSecretKey,
@@ -382,12 +383,50 @@ const distributeInstruction = {
 };
 
 {
+  /**
+   * Neither the payee's nor the treasury's token account exists on a first
+   * run, and `distribute` validates both before it will move anything —
+   * a missing treasury ATA is error 2402 (`InvalidTreasuryTokenAccount`), which
+   * is exactly what the previous attempt hit once the owner address was right.
+   *
+   * Anyone may create `ATA(owner, mint, token_program)`; the account is owned
+   * by that owner, so this gifts the payee and the treasury a place to receive
+   * their tokens and costs only the rent. Idempotent, so a retry is harmless.
+   */
+  const ataInstructionFor = (ataAccount, owner) =>
+    buildCreateAtaIdempotentInstruction({
+      payer: payer.address,
+      payerSigner: payer,
+      ata: ataAccount,
+      owner,
+      mint: channel.mint,
+      tokenProgram: TOKEN_PROGRAM,
+      AccountRole,
+    });
+
+  const payeeAtaExists = before.payee !== null;
+  const treasuryAtaExists = before.treasury !== null;
+
+  const createInstructions = [];
+  if (!payeeAtaExists) createInstructions.push(ataInstructionFor(payeeTokenAccount, channel.payee));
+  if (!treasuryAtaExists) createInstructions.push(ataInstructionFor(treasuryTokenAccount, TREASURY_OWNER));
+
+  if (createInstructions.length === 0) {
+    console.log("    both recipient accounts already exist");
+    console.log("");
+  } else {
+    console.log(
+      `    creating ${createInstructions.length} missing token account(s) first` +
+        `${payeeAtaExists ? "" : " — payee"}${treasuryAtaExists ? "" : " — treasury"}`,
+    );
+  }
+
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     (m) => setTransactionMessageFeePayerSigner(payer, m),
     (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-    (m) => appendTransactionMessageInstructions([distributeInstruction], m),
+    (m) => appendTransactionMessageInstructions([...createInstructions, distributeInstruction], m),
   );
   const signedTransaction = await signTransactionMessageWithSigners(message);
   const signature = getSignatureFromTransaction(signedTransaction);

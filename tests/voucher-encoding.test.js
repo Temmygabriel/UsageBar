@@ -21,6 +21,7 @@ import { createHash, createPublicKey, verify as edVerify } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
+  ATA_CREATE_IDEMPOTENT,
   BPS_DENOMINATOR,
   CANONICAL_IX_DATA_LEN,
   DISCRIMINATOR,
@@ -29,6 +30,7 @@ import {
   PUBKEY_OFFSET,
   SIGNATURE_OFFSET,
   VOUCHER_PAYLOAD_SIZE,
+  buildCreateAtaIdempotentInstruction,
   buildEd25519PrecompileData,
   buildVoucherPayload,
   encodeDistributeData,
@@ -250,5 +252,62 @@ describe("distribution preimage", () => {
 
   it("pins the basis-point denominator", () => {
     expect(BPS_DENOMINATOR).toBe(10_000);
+  });
+});
+
+describe("ATA creation instruction", () => {
+  /**
+   * The Associated Token Program's layout is fixed by the program itself, and
+   * the builder is hand-rolled because the Solana packages are installed only
+   * in CI, so its export names cannot be checked on the development machine.
+   * These assertions are what keeps that hand-rolling honest.
+   */
+  const AccountRole = { READONLY: 0, WRITABLE: 1, READONLY_SIGNER: 2, WRITABLE_SIGNER: 3 };
+  const SIGNER = { address: "payerSigner" };
+
+  const build = () =>
+    buildCreateAtaIdempotentInstruction({
+      payer: "payer",
+      payerSigner: SIGNER,
+      ata: "ata",
+      owner: "owner",
+      mint: "mint",
+      tokenProgram: "tokenProgram",
+      AccountRole,
+    });
+
+  it("targets the Associated Token Program with the CreateIdempotent tag", () => {
+    const instruction = build();
+    expect(instruction.programAddress).toBe("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+    // 1, not 0: plain `Create` fails when the account already exists, which
+    // would make a retried close impossible.
+    expect([...instruction.data]).toEqual([1]);
+    expect(ATA_CREATE_IDEMPOTENT).toBe(1);
+  });
+
+  it("orders the six accounts exactly as the program requires", () => {
+    const instruction = build();
+    expect(instruction.accounts.map((account) => account.address)).toEqual([
+      "payer",
+      "ata",
+      "owner",
+      "mint",
+      "11111111111111111111111111111111",
+      "tokenProgram",
+    ]);
+    expect(instruction.accounts.map((account) => account.role)).toEqual([
+      AccountRole.WRITABLE_SIGNER,
+      AccountRole.WRITABLE,
+      AccountRole.READONLY,
+      AccountRole.READONLY,
+      AccountRole.READONLY,
+      AccountRole.READONLY,
+    ]);
+  });
+
+  it("carries the payer's signer object, without which the transaction cannot be signed", () => {
+    expect(build().accounts[0].signer).toBe(SIGNER);
+    // The other five must NOT be signers.
+    expect(build().accounts.slice(1).every((account) => account.signer === undefined)).toBe(true);
   });
 });

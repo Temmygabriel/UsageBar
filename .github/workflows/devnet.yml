@@ -26,6 +26,11 @@ on:
         type: string
         required: false
         default: "1"
+      grace_period:
+        description: "Grace period in seconds (open-channel only). Must be greater than zero."
+        type: string
+        required: false
+        default: "60"
 
 permissions:
   contents: read
@@ -82,6 +87,7 @@ jobs:
           esac
         env:
           SALT: ${{ inputs.salt }}
+          GRACE_PERIOD: ${{ inputs.grace_period }}
           DEVNET_PAYER_KEYPAIR: ${{ secrets.DEVNET_PAYER_KEYPAIR }}
           DEVNET_TEST_MINT_KEYPAIR: ${{ secrets.DEVNET_TEST_MINT_KEYPAIR }}
           DEVNET_OPERATOR_KEYPAIR: ${{ secrets.DEVNET_OPERATOR_KEYPAIR }}

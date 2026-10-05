@@ -74,7 +74,26 @@ const DECIMALS = 6n;
 /** 50 TEST, to match the demo's stated ceiling. */
 const DEPOSIT = BigInt(process.env.DEPOSIT ?? "50000000");
 const SALT = BigInt(process.env.SALT ?? "1");
-const GRACE_PERIOD = Number(process.env.GRACE_PERIOD ?? "0");
+/**
+ * Grace period in SECONDS, set at `open`.
+ *
+ * It is the payer's protection window: `requestClose` records
+ * `closureStartedAt = now` and moves OPEN -> CLOSING, after which the payee has
+ * this long to submit a final voucher before `seal` becomes permissionless.
+ * `settleAndSeal` seals mid-grace, so the normal path never waits for it.
+ *
+ * It must be non-zero: the program rejects zero with error 201,
+ * `gracePeriodMustBeNonZero`. That is checked below rather than discovered on
+ * chain, because it costs a round trip to learn the hard way.
+ */
+const GRACE_PERIOD = Number(process.env.GRACE_PERIOD ?? "60");
+
+if (!Number.isInteger(GRACE_PERIOD) || GRACE_PERIOD <= 0) {
+  throw new Error(
+    `GRACE_PERIOD must be a positive integer, got ${process.env.GRACE_PERIOD}. ` +
+      "The program rejects zero with error 201 (gracePeriodMustBeNonZero).",
+  );
+}
 
 const addressEncoder = getAddressEncoder();
 const addressDecoder = getAddressDecoder();
@@ -235,6 +254,7 @@ console.log(`  authorizedSigner: ${OPERATOR}`);
 console.log(`  mint           : ${TEST_MINT}`);
 console.log(`  deposit        : ${DEPOSIT} atomic (${Number(DEPOSIT) / 10 ** Number(DECIMALS)} TEST)`);
 console.log(`  salt           : ${SALT}`);
+console.log(`  gracePeriod    : ${GRACE_PERIOD} seconds`);
 console.log("");
 
 const currentSlot = await rpc.getSlot().send();

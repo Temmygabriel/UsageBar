@@ -1,0 +1,55 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next.js
+.next/
+out/
+build/
+dist/
+next-env.d.ts
+*.tsbuildinfo
+
+# testing
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# production
+.vercel
+
+# ===== SECRETS AND LOCAL-ONLY FILES (Section 55/56 of the build spec) =====
+# NEVER commit any of these.
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# wallets and keys
+local-wallet/
+private-keys/
+*.keypair.json
+keypair.json
+id.json
+*.pem
+
+# debug / machine-specific
+debug dumps/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# editor / os
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

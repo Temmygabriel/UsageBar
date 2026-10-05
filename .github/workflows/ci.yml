@@ -1,0 +1,58 @@
+name: CI
+
+# Build spec Section 54.
+#
+# Runs on GitHub-hosted runners because the development machine has 8 GB RAM
+# (build spec Section 1.5). Standard runners are free with no minute cap on
+# public repositories, so all install/build/test work happens here and never
+# on the local machine.
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      # NOTE: `npm install` rather than `npm ci`, because package-lock.json is
+      # not committed yet. Generating it locally is impractical on the
+      # development machine (8 GB RAM, ~0.6 GB free). It must be generated here
+      # and committed before final submission so installs become reproducible.
+      # Tracking: Phase 0 follow-up.
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Public, non-secret. Never put a private key in a NEXT_PUBLIC_ variable.
+          NEXT_PUBLIC_SOLANA_CLUSTER: devnet

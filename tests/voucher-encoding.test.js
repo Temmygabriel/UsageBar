@@ -270,7 +270,6 @@ describe("ATA creation instruction", () => {
    * These assertions are what keeps that hand-rolling honest.
    */
   const AccountRole = { READONLY: 0, WRITABLE: 1, READONLY_SIGNER: 2, WRITABLE_SIGNER: 3 };
-  const SIGNER = { address: "payerSigner" };
 
   const build = () =>
     buildCreateAtaIdempotentInstruction({
@@ -338,6 +337,17 @@ const ROLE = {
   READONLY: "readonly",
   READONLY_SIGNER: "readonlySigner",
 };
+
+/**
+ * A stand-in for a `TransactionSigner`.
+ *
+ * Module scope, not per-describe-block. Three separate blocks assert that the
+ * signer they were handed is the very object that ends up in the account meta,
+ * and when this was block-scoped those blocks threw `ReferenceError: SIGNER is
+ * not defined` instead of testing anything — a fixture that made the tests fail
+ * loudly, which is the good version of this mistake, but still a mistake.
+ */
+const SIGNER = { address: "payerSigner" };
 
 describe("open instruction", () => {
   const args = {
@@ -521,9 +531,17 @@ describe("readTokenAccountAmount", () => {
   });
 
   it("reads from the right place inside a larger buffer", () => {
-    const backing = new Uint8Array(200);
-    new DataView(backing.buffer).setBigUint64(100 + 64, 42n, true);
-    expect(readTokenAccountAmount(backing.subarray(100, 165))).toBe(42n);
+    // A real token account read back from RPC arrives as a view into a larger
+    // backing buffer, not as a zero-offset array, so the offset has to be
+    // honoured: `DataView(buffer, byteOffset, byteLength)` starts at the
+    // account, not at the start of the buffer. Slicing fewer than 165 bytes
+    // here would be testing the length guard instead of the offset.
+    const ACCOUNT_START = 100;
+    const backing = new Uint8Array(ACCOUNT_START + 165);
+    new DataView(backing.buffer).setBigUint64(ACCOUNT_START + 64, 42n, true);
+    const account = backing.subarray(ACCOUNT_START, ACCOUNT_START + 165);
+    expect(account.length).toBe(165);
+    expect(readTokenAccountAmount(account)).toBe(42n);
   });
 
   it("refuses a buffer too short to hold an amount", () => {

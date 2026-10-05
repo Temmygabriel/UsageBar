@@ -49,6 +49,13 @@ import {
 } from "@solana/kit";
 import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 
+import {
+  CHANNEL_STATUS,
+  channelSeeds,
+  decodeChannel,
+  encodeOpenArgs,
+} from "./lib/protocol.mjs";
+
 // ---------------------------------------------------------------------------
 // Fixed addresses
 // ---------------------------------------------------------------------------
@@ -138,97 +145,11 @@ function decodeSecretKey(variableName) {
 }
 
 // ---------------------------------------------------------------------------
-// Instruction encoding, taken from the IDL
+// The instruction encoding and the channel decoder now live in
+// tools/lib/protocol.mjs, alongside every other byte layout the program pins.
+// They were duplicated here first; keeping one copy is what stops the tooling
+// and the application from drifting apart.
 // ---------------------------------------------------------------------------
-
-const OPEN_DISCRIMINATOR = 1;
-
-/**
- * openArgs: salt u64, deposit u64, gracePeriod u32, openSlot u64,
- *           recipients (u32 count, then {pubkey, u16 bps} each)
- */
-function encodeOpenArgs({ salt, deposit, gracePeriod, openSlot, recipients }) {
-  const size = 1 + 8 + 8 + 4 + 8 + 4 + recipients.length * 34;
-  const buffer = new Uint8Array(size);
-  const view = new DataView(buffer.buffer);
-  let offset = 0;
-
-  view.setUint8(offset, OPEN_DISCRIMINATOR);
-  offset += 1;
-  view.setBigUint64(offset, salt, true);
-  offset += 8;
-  view.setBigUint64(offset, deposit, true);
-  offset += 8;
-  view.setUint32(offset, gracePeriod, true);
-  offset += 4;
-  view.setBigUint64(offset, openSlot, true);
-  offset += 8;
-  view.setUint32(offset, recipients.length, true);
-  offset += 4;
-
-  for (const entry of recipients) {
-    buffer.set(addressEncoder.encode(entry.recipient), offset);
-    offset += 32;
-    view.setUint16(offset, entry.bps, true);
-    offset += 2;
-  }
-
-  return buffer;
-}
-
-/** The channel account, in IDL field order. Total is 256 bytes. */
-function decodeChannel(data) {
-  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  let offset = 0;
-  const readU8 = () => view.getUint8(offset++);
-  const readU32 = () => {
-    const value = view.getUint32(offset, true);
-    offset += 4;
-    return value;
-  };
-  const readU64 = () => {
-    const value = view.getBigUint64(offset, true);
-    offset += 8;
-    return value;
-  };
-  const readI64 = () => {
-    const value = view.getBigInt64(offset, true);
-    offset += 8;
-    return value;
-  };
-  const readPubkey = () => {
-    const value = addressDecoder.decode(data.subarray(offset, offset + 32));
-    offset += 32;
-    return value;
-  };
-
-  const channel = {
-    discriminator: readU8(),
-    version: readU8(),
-    bump: readU8(),
-    status: readU8(),
-  };
-  channel.salt = readU64();
-  channel.deposit = readU64();
-  channel.settled = readU64();
-  channel.payoutWatermark = readU64();
-  channel.closureStartedAt = readI64();
-  channel.payerWithdrawnAt = readI64();
-  channel.gracePeriod = readU32();
-  channel.distributionHash = Buffer.from(data.subarray(offset, offset + 32)).toString("hex");
-  offset += 32;
-  channel.payer = readPubkey();
-  channel.payee = readPubkey();
-  channel.authorizedSigner = readPubkey();
-  channel.mint = readPubkey();
-  channel.rentPayer = readPubkey();
-  channel.openSlot = readU64();
-  channel.bytesConsumed = offset;
-
-  return channel;
-}
-
-const STATUS_NAMES = ["Open", "Sealed", "Closing", "Distributed"];
 
 // ---------------------------------------------------------------------------
 // Main
@@ -266,15 +187,14 @@ const encoder = addressEncoder;
 
 const [channelAddress, channelBump] = await getProgramDerivedAddress({
   programAddress: PAYMENT_CHANNELS_PROGRAM,
-  seeds: [
-    "channel",
-    encoder.encode(payer.address),
-    encoder.encode(PAYEE),
-    encoder.encode(TEST_MINT),
-    encoder.encode(OPERATOR),
-    new Uint8Array(new BigUint64Array([SALT]).buffer),
-    new Uint8Array(new BigUint64Array([openSlot]).buffer),
-  ],
+  seeds: channelSeeds(encoder, {
+    payer: payer.address,
+    payee: PAYEE,
+    mint: TEST_MINT,
+    authorizedSigner: OPERATOR,
+    salt: SALT,
+    openSlot,
+  }),
 });
 
 const [eventAuthority] = await getProgramDerivedAddress({
@@ -304,7 +224,7 @@ if (existing.value !== null) {
   console.log("  A channel already exists at this address. Nothing was sent.");
   console.log("  Change SALT to open a different one.");
   console.log("");
-  const decoded = decodeChannel(Buffer.from(existing.value.data[0], "base64"));
+  const decoded = decodeChannel(Buffer.from(existing.value.data[0], "base64"), addressDecoder);
   console.log("  EXISTING CHANNEL");
   console.log(JSON.stringify(decoded, (_key, value) =>
     typeof value === "bigint" ? value.toString() : value, 2));
@@ -313,6 +233,7 @@ if (existing.value !== null) {
 }
 
 const instructionData = encodeOpenArgs({
+  addressEncoder,
   salt: SALT,
   deposit: DEPOSIT,
   gracePeriod: GRACE_PERIOD,
@@ -379,7 +300,7 @@ if (readback.value === null) {
 }
 
 const raw = Buffer.from(readback.value.data[0], "base64");
-const decoded = decodeChannel(raw);
+const decoded = decodeChannel(raw, addressDecoder);
 
 console.log("  WHAT THE CHAIN SAYS");
 console.log("  -------------------");
@@ -391,7 +312,7 @@ console.log(`  fields consumed : ${decoded.bytesConsumed}`);
 console.log("");
 console.log(
   JSON.stringify(
-    { ...decoded, status: `${decoded.status} (${STATUS_NAMES[decoded.status] ?? "unknown"})` },
+    { ...decoded, status: `${decoded.status} (${CHANNEL_STATUS[decoded.status] ?? "unknown"})` },
     (_key, value) => (typeof value === "bigint" ? value.toString() : value),
     2,
   ),

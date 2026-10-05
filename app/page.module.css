@@ -176,6 +176,41 @@
   line-height: 1.5;
 }
 
+/*
+ * Banner tones.
+ *
+ * The default above is the amber "something needs your attention" state, which
+ * is why it is the one with no modifier. The other three say different things
+ * and are coloured accordingly — and the error tone is deliberately the loudest,
+ * because the failure that matters most here is the one where the interface
+ * cannot reach the chain and must not look calm about it.
+ */
+.bannerInfo {
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: var(--accent-quiet);
+  color: var(--ink-muted);
+}
+
+.bannerSuccess {
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
+  background: var(--success-quiet);
+  color: var(--success);
+}
+
+.bannerError {
+  border-color: color-mix(in srgb, var(--danger) 48%, transparent);
+  background: var(--danger-quiet);
+  color: var(--danger);
+}
+
+/* The connected wallet's address, in the header. Monospace, because it is an
+   identifier rather than a word — it is meant to be compared, not read. */
+.walletChip {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+}
+
 /* --------------------------------------------------------------- footer - */
 
 .footer {

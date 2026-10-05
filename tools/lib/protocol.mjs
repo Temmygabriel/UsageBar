@@ -78,6 +78,99 @@ export const CHANNEL_LEN = 256;
 export const CHANNEL_SEED = "channel";
 
 /**
+ * A u64 as its 8 little-endian bytes.
+ *
+ * `new BigUint64Array([value]).buffer` is native-endian, which is little-endian
+ * on every platform this runs on, and is how the already-proven `open` call
+ * derived its PDA. Written as an explicit helper so the two places that need it
+ * cannot drift.
+ */
+function u64le(value) {
+  return new Uint8Array(new BigUint64Array([BigInt(value)]).buffer);
+}
+
+/**
+ * The channel PDA seeds, in order. The bump is appended by the derivation
+ * itself and is not part of this list.
+ *
+ *   ["channel", payer, payee, mint, authorized_signer, salt(u64), open_slot(u64)]
+ *
+ * `open_slot` being a seed is the reason a duplicate channel is impossible to
+ * collide with by accident: two channels between the same parties over the
+ * same mint differ only by salt and the slot they were opened in. It is also
+ * why a failed open cannot simply be retried with identical arguments without
+ * landing on the same address.
+ */
+export function channelSeeds(addressEncoder, { payer, payee, mint, authorizedSigner, salt, openSlot }) {
+  return [
+    CHANNEL_SEED,
+    addressEncoder.encode(payer),
+    addressEncoder.encode(payee),
+    addressEncoder.encode(mint),
+    addressEncoder.encode(authorizedSigner),
+    u64le(salt),
+    u64le(openSlot),
+  ];
+}
+
+/** Instruction data for `open`: the discriminator, then `openArgs`. */
+export const OPEN_DISCRIMINATOR = DISCRIMINATOR.open;
+
+/**
+ * `openArgs` wire layout, from the IDL — arguments are a NAMED STRUCT, so the
+ * fields are laid out in declaration order with no Borsh length framing:
+ *
+ *   salt          u64
+ *   deposit       u64
+ *   gracePeriod   u32
+ *   openSlot      u64
+ *   recipients    u32 count, then [ recipient (32) | shareBps (u16 LE) ] each
+ *
+ * This is the same recipient tuple as `encodeDistributionPreimage`, but it is
+ * NOT the same encoding: here the list is framed as an instruction argument,
+ * there it is hashed as a preimage. They are deliberately kept as separate
+ * functions so a change to one cannot silently alter the other.
+ *
+ * Note the u32 grace period sitting between two u64s — the same trap as the
+ * channel account. A reader that assumes the 8-byte fields are contiguous
+ * produces a plausible, entirely wrong buffer.
+ */
+export function encodeOpenArgs({ addressEncoder, salt, deposit, gracePeriod, openSlot, recipients = [] }) {
+  if (!Number.isInteger(gracePeriod) || gracePeriod <= 0) {
+    throw new Error(
+      `gracePeriod must be a positive integer, got ${gracePeriod} -> ` +
+        "error 201 (gracePeriodMustBeNonZero).",
+    );
+  }
+
+  const buffer = new Uint8Array(1 + 8 + 8 + 4 + 8 + 4 + recipients.length * 34);
+  const view = new DataView(buffer.buffer);
+  let offset = 0;
+
+  view.setUint8(offset, OPEN_DISCRIMINATOR);
+  offset += 1;
+  view.setBigUint64(offset, BigInt(salt), true);
+  offset += 8;
+  view.setBigUint64(offset, BigInt(deposit), true);
+  offset += 8;
+  view.setUint32(offset, gracePeriod, true);
+  offset += 4;
+  view.setBigUint64(offset, BigInt(openSlot), true);
+  offset += 8;
+  view.setUint32(offset, recipients.length, true);
+  offset += 4;
+
+  for (const entry of recipients) {
+    buffer.set(addressEncoder.encode(entry.recipient), offset);
+    offset += 32;
+    view.setUint16(offset, entry.bps, true);
+    offset += 2;
+  }
+
+  return buffer;
+}
+
+/**
  * The channel account in IDL field order. Total is exactly 256 bytes.
  *
  * The order matters and is not alphabetical or grouped by type: the `u32`
@@ -396,6 +489,96 @@ export function buildCreateAtaIdempotentInstruction({
     ],
     data: new Uint8Array([ATA_CREATE_IDEMPOTENT]),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Transfers
+//
+// Hand-rolled for the same reason as the ATA builder above: the layouts are
+// fixed by the System Program and by SPL Token respectively, they are a few
+// bytes each, and writing them out avoids depending on an export name that
+// cannot be checked on this machine. `tests/voucher-encoding.test.js` pins
+// every byte.
+// ---------------------------------------------------------------------------
+
+/** System Program instruction index 2 is `Transfer`. */
+export const SYSTEM_TRANSFER_DISCRIMINATOR = 2;
+
+/**
+ * A lamport transfer: `u32 LE discriminant || u64 LE lamports`, and exactly two
+ * accounts — source (writable, signer) then destination (writable).
+ */
+export function buildSystemTransferInstruction({ from, to, fromSigner, lamports, AccountRole }) {
+  if (BigInt(lamports) <= 0n) {
+    throw new Error(`a transfer of ${lamports} lamports is either a no-op or backwards`);
+  }
+  const data = new Uint8Array(12);
+  const view = new DataView(data.buffer);
+  view.setUint32(0, SYSTEM_TRANSFER_DISCRIMINATOR, true);
+  view.setBigUint64(4, BigInt(lamports), true);
+
+  return {
+    programAddress: SYSTEM_PROGRAM,
+    accounts: [
+      { address: from, role: AccountRole.WRITABLE_SIGNER, signer: fromSigner },
+      { address: to, role: AccountRole.WRITABLE },
+    ],
+    data,
+  };
+}
+
+/** SPL Token instruction 3 is `Transfer`. */
+export const TOKEN_TRANSFER_DISCRIMINATOR = 3;
+
+/**
+ * An SPL transfer: `u8 3 || u64 LE amount`, with accounts source (writable),
+ * destination (writable), and the owner/authority (readonly, signer).
+ *
+ * `Transfer` rather than `TransferChecked`: the mint is validated by the
+ * caller here (the faucet only ever moves our own verified TEST mint), and
+ * skipping the mint account keeps this instruction's account list unambiguous.
+ */
+export function buildTokenTransferInstruction({
+  source,
+  destination,
+  authority,
+  authoritySigner,
+  amount,
+  tokenProgram,
+  AccountRole,
+}) {
+  if (BigInt(amount) <= 0n) {
+    throw new Error(`a transfer of ${amount} tokens is either a no-op or backwards`);
+  }
+  const data = new Uint8Array(9);
+  data[0] = TOKEN_TRANSFER_DISCRIMINATOR;
+  new DataView(data.buffer).setBigUint64(1, BigInt(amount), true);
+
+  return {
+    programAddress: tokenProgram,
+    accounts: [
+      { address: source, role: AccountRole.WRITABLE },
+      { address: destination, role: AccountRole.WRITABLE },
+      { address: authority, role: AccountRole.READONLY_SIGNER, signer: authoritySigner },
+    ],
+    data,
+  };
+}
+
+/**
+ * The `amount` field of a classic SPL token account, read straight from the
+ * account bytes.
+ *
+ * The 165-byte SPL layout puts `mint` at 0, `owner` at 32 and `amount` at 64.
+ * Reading it here rather than through a decoded client means a missing account
+ * is a `null` rather than a thrown RPC error, which is what the callers need in
+ * order to distinguish "no account yet" from "zero balance".
+ */
+export function readTokenAccountAmount(data) {
+  if (data.length < 72) {
+    throw new Error(`token account is ${data.length} bytes, too short to carry an amount`);
+  }
+  return new DataView(data.buffer, data.byteOffset, data.byteLength).getBigUint64(64, true);
 }
 
 // ---------------------------------------------------------------------------

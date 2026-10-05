@@ -47,6 +47,17 @@ export interface UsageTabProps {
   readonly updates: readonly UsageUpdate[];
   readonly onOpen: () => void;
   readonly onClose: () => void;
+  /**
+   * The READY-state primary action's label.
+   *
+   * The next real step is not always "open a tab": with no wallet connected it
+   * is "connect a wallet", and with an empty wallet it is "get test funds". The
+   * label is a prop so the button can name the step that will actually happen
+   * rather than the one the developer had in mind.
+   */
+  readonly openLabel?: string;
+  /** Why the primary action is unavailable, if it is. Rendered under the button. */
+  readonly blockedReason?: string | null;
 }
 
 /** The status chip. Each state gets a label and a tone, never a fake success. */
@@ -80,6 +91,8 @@ export default function UsageTab({
   updates,
   onOpen,
   onClose,
+  openLabel = "Open tab",
+  blockedReason = null,
 }: UsageTabProps) {
   const chip = statusChip(state);
   const onChain = provenance === "ON_CHAIN";
@@ -260,9 +273,14 @@ export default function UsageTab({
         )}
 
         {canOpen && (
-          <button type="button" className="button button-block" onClick={onOpen}>
-            Open tab
-          </button>
+          <>
+            <button type="button" className="button button-block" onClick={onOpen}>
+              {openLabel}
+            </button>
+            {blockedReason !== null && (
+              <p className={styles.pending}>{blockedReason}</p>
+            )}
+          </>
         )}
 
         {canClose && (

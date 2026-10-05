@@ -39,6 +39,13 @@
   --warn: #8a5a1a;
   --warn-quiet: #f6efe1;
 
+  /* The failure colour, and it is deliberately NOT the accent. Reusing the
+     orange for errors would make "press me" and "something broke" the same
+     colour, which is the wrong thing to teach someone about an interface that
+     moves money. This is a red that belongs to the same warm family. */
+  --danger: #a32b1a;
+  --danger-quiet: #f7e4e0;
+
   /* --- Geometry --------------------------------------------------------- */
   /* Section 0C asks for "limited rounding rather than oversized pill/card
      geometry", so these stay small and are never used at pill scale. */
@@ -91,6 +98,11 @@
 
     --warn: #cfa055;
     --warn-quiet: #2a2318;
+
+    /* Lightened rather than swapped for a different hue, so the failure colour
+       still reads as the same colour in both themes. */
+    --danger: #e8846f;
+    --danger-quiet: #2a1a16;
   }
 }
 

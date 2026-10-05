@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-
 import UsageTab from "./components/UsageTab";
 import styles from "./page.module.css";
 
-import { explorerTransactionUrl, type ProductState } from "../lib/session";
+import { abbreviate, explorerTransactionUrl } from "../lib/session";
+import { useSession, type Notice } from "../lib/use-session";
 
 /**
  * The UsageBar landing page.
@@ -14,34 +13,34 @@ import { explorerTransactionUrl, type ProductState } from "../lib/session";
  * proposition on the left, and the Usage Tab as the dominant object on the
  * right, collapsing to a single column on narrow screens.
  *
- * Two things this page refuses to do, both of which the build spec makes
- * non-negotiable:
+ * The page itself holds no protocol logic and no chain access. Everything that
+ * touches Solana lives in `lib/use-session.ts`, and everything that decides what
+ * a number means lives in `lib/session.ts`. This file's job is to put the right
+ * thing on screen and to name, honestly, what the next real step is.
  *
- *   1. It does not invent protocol data. There is no session here yet, so the
- *      tab renders in READY with a PROPOSED ceiling and says plainly that
- *      nothing is on chain. Section 0C forbids copying the reference image's
- *      example amounts and transaction data into real behaviour.
+ * WHY THE PRIMARY BUTTON CHANGES LABEL
  *
- *   2. It does not claim a result it has not read back. The state machine is
- *      driven by verified chain state (Section 12), and the Devnet adapter
- *      that supplies it is not connected in this build — so the actions say
- *      so rather than advancing the machine on optimism.
- *
- * The footer is the exception that proves the rule: every entry there is a
- * real, confirmable Devnet transaction, and each links to the explorer.
+ * The customer's key is their own — that is the product, not a detail of it. So
+ * the first step is connecting a wallet, and the second is getting Devnet funds
+ * into it. A button that always said "Open tab" would be lying on a fresh
+ * browser, because that is not what pressing it would do. It names the step that
+ * will actually happen instead.
  */
 
-/** The configured ceiling for the demo service. Not a chain value. */
-const CEILING_ATOMIC = 50_000_000n;
-/** The verified test mint has six decimals. Never assumed — see lib/amounts.ts. */
-const DECIMALS = 6;
-const UNIT = "TEST";
+/** The cluster every link and every claim on this page refers to. */
+const CLUSTER = process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "devnet";
 
 /**
- * The evidence footer. Every signature below was produced by a real run of
- * this repository's own tooling against Solana Devnet, and each is
- * independently checkable on the explorer. This is the honest version of a
- * "trust us" section: it asks the reader to verify rather than to believe.
+ * The evidence footer.
+ *
+ * Every signature below was produced by a real run of this repository's own
+ * tooling against Solana Devnet, and each is independently checkable. This is
+ * the honest version of a "trust us" section: it asks the reader to verify
+ * rather than to believe.
+ *
+ * These are the standalone runs that proved the protocol works, not
+ * transactions from the live demo above. The distinction matters and the note
+ * below the list says so.
  */
 const EVIDENCE = [
   {
@@ -54,7 +53,7 @@ const EVIDENCE = [
   },
   {
     claim: "The channel was sealed at its final metered amount",
-    signature: "3WjdkDYv9UCazfz9EQyZ7mPTnkdbU2vFVpseCyFRAYqnKJUcTfgHYUizvhayKKpPL5MR3qqGLp32xrhxESHJfZ8p",
+    signature: "3WjdkDYv9UCazfz9EQYz7mPTnkdbU2vFVpseCyFRAYqnKJUcTfgHYUizvhayKKpPL5MR3qqGLp32xrhxESHJfZ8p",
   },
   {
     claim: "The provider was paid, the customer refunded, escrow emptied",
@@ -62,23 +61,73 @@ const EVIDENCE = [
   },
 ] as const;
 
+/** Map a notice tone onto a banner style. */
+function bannerClass(tone: Notice["tone"]): string {
+  const base = styles.banner;
+  switch (tone) {
+    case "success":
+      return `${base} ${styles.bannerSuccess}`;
+    case "error":
+      return `${base} ${styles.bannerError}`;
+    case "info":
+      return `${base} ${styles.bannerInfo}`;
+    case "warn":
+      return base;
+  }
+}
+
+/** A whole number of TEST, for prose. Only ever used for the rate, never money. */
+function ratePerSecond(atomicPerSecond: string, decimals: number): string {
+  const value = Number(atomicPerSecond) / 10 ** decimals;
+  return value >= 1 ? value.toFixed(2) : value.toString();
+}
+
 export default function Page() {
-  const [state, setState] = useState<ProductState>("READY");
-  const [notice, setNotice] = useState<string | null>(null);
+  const { state, actions } = useSession();
+  const { wallet, service, channel, facts, updates, notice, busy, balances } = state;
+
+  const decimals = service?.decimals ?? 6;
+  const unit = "TEST";
+
+  const connected = wallet.status === "connected";
+  const hasChannel = channel !== null;
+
+  /** Until a channel exists, the ceiling is a proposal. After that, it is the deposit. */
+  const ceiling = hasChannel ? BigInt(channel.deposit) : BigInt(service?.ceilingAtomic ?? "50000000");
+  const settled = hasChannel ? BigInt(channel.settled) : 0n;
 
   /**
-   * Neither action advances the state machine yet, and that is deliberate.
-   * Moving to OPENING without a submitted transaction would be exactly the
-   * optimistic state Section 12 forbids. Once the Devnet adapter lands, these
-   * become real submissions and the state follows the chain, not the click.
+   * Whether this wallet needs test funds before it can open a tab.
+   *
+   * Only ever true on a positive reading. If the balance could not be read,
+   * `balances` is null and this stays false, so a failure to check sends nobody
+   * to a faucet they may not need.
    */
-  const explainNotConnected = (action: string) => {
-    setNotice(
-      `${action} is not connected in this build: the Devnet chain adapter is still being wired. ` +
-        "No transaction has been sent and no state has changed. Everything the tab shows below is " +
-        "a proposal, not a deposit.",
-    );
-  };
+  const shortOnFunds =
+    connected &&
+    !hasChannel &&
+    balances !== null &&
+    (balances.tokens === null || balances.tokens < ceiling);
+
+  /**
+   * The next real step, named. Order matters: no wallet, then no funds, then open.
+   */
+  const openLabel = !connected
+    ? "Connect wallet"
+    : shortOnFunds
+      ? "Get test funds"
+      : "Open tab";
+
+  const onPrimary = !connected ? actions.connect : shortOnFunds ? actions.fund : actions.open;
+
+  const blockedReason = shortOnFunds
+    ? `Your wallet needs Devnet SOL and ${unit} before it can fund a deposit. Pressing the ` +
+      "button above sends both. They are worthless by design."
+    : null;
+
+  const serviceMeta = service
+    ? `Billed by the second · ${ratePerSecond(service.rateAtomicPerSecond, decimals)} ${unit} per second`
+    : "Billed by the second";
 
   return (
     <div className={styles.shell}>
@@ -92,14 +141,33 @@ export default function Page() {
           </nav>
 
           <div className={styles.headerActions}>
-            <span className={styles.network}>Devnet · test funds</span>
-            <button
-              type="button"
-              className="button button-quiet"
-              onClick={() => explainNotConnected("Wallet connection")}
-            >
-              Connect wallet
-            </button>
+            <span className={styles.network}>{CLUSTER} · test funds</span>
+
+            {connected ? (
+              <>
+                <span className={`chip chip-verified ${styles.walletChip}`}>
+                  <span className="chip-dot" />
+                  {abbreviate(wallet.address ?? "", 4, 4)}
+                </span>
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={actions.disconnect}
+                  disabled={busy}
+                >
+                  Disconnect
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={actions.connect}
+                disabled={busy || wallet.status === "connecting"}
+              >
+                {wallet.status === "connecting" ? "Connecting…" : "Connect wallet"}
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -130,31 +198,33 @@ export default function Page() {
 
         <div className={styles.tabColumn}>
           {notice !== null && (
-            <p className={styles.banner} role="status">
-              {notice}
+            <p className={bannerClass(notice.tone)} role="status">
+              {notice.text}
             </p>
           )}
 
           <UsageTab
-            state={state}
+            state={state.state}
             serviceName="Camera Rental"
-            serviceMeta="Six-minute rental · billed by the second"
-            unitLabel={UNIT}
-            ceiling={CEILING_ATOMIC}
-            settled={0n}
-            decimals={DECIMALS}
-            provenance="PROPOSED"
-            facts={null}
-            updates={[]}
-            onOpen={() => explainNotConnected("Opening a tab")}
-            onClose={() => explainNotConnected("Closing and settling")}
+            serviceMeta={serviceMeta}
+            unitLabel={unit}
+            ceiling={ceiling}
+            settled={settled}
+            decimals={decimals}
+            provenance={hasChannel ? "ON_CHAIN" : "PROPOSED"}
+            facts={facts}
+            updates={updates}
+            onOpen={onPrimary}
+            onClose={actions.close}
+            openLabel={openLabel}
+            blockedReason={blockedReason}
           />
         </div>
       </main>
 
       <footer className={styles.footer} id="evidence">
         <div className={styles.footerInner}>
-          <h2 className={styles.footerTitle}>Verified on Solana Devnet</h2>
+          <h2 className={styles.footerTitle}>Verified on Solana {CLUSTER}</h2>
 
           <ul className={styles.evidence}>
             {EVIDENCE.map((entry) => (
@@ -173,13 +243,14 @@ export default function Page() {
           </ul>
 
           <p className={styles.footerNote}>
-            Each signature above is a real transaction on Solana Devnet, produced by this
+            Each signature above is a real transaction on Solana {CLUSTER}, produced by this
             repository&rsquo;s own tooling against the live Payment Channels program, and each can
-            be checked on the explorer. This is the whole lifecycle: money into escrow, the meter
-            advanced by signed cumulative vouchers, then a close that paid the provider and
-            returned the unused remainder. It runs on Devnet with test funds, and has not been
-            audited — see <code>docs/CLAIM_STATUS.md</code> for exactly what is proven and what is
-            not.
+            be checked on the explorer. Together they are the whole lifecycle: money into escrow,
+            the meter advanced by signed cumulative vouchers, then a close that paid the provider
+            and returned the unused remainder. Those four are from the standalone runs that proved
+            the protocol; a tab you open above produces its own. Everything runs on {CLUSTER} with
+            test funds, nothing here has been audited, and{" "}
+            <code>docs/CLAIM_STATUS.md</code> records exactly what is proven and what is not.
           </p>
         </div>
       </footer>

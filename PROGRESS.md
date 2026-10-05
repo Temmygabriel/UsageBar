@@ -14,13 +14,46 @@
 
 ## Where we are right now
 
-**Two gates are passed.** A real payment channel is open on devnet and read back
-from chain, and its settled watermark has been advanced twice by cumulative
-vouchers that the operator signed off-chain. Those were the two things
-everything else waited behind.
+**All three gates are passed. The protocol works end to end on devnet.**
 
-Not yet started: the application itself. There is no UI, no live usage meter,
-and no close-and-distribute. Those come next.
+A real payment channel was opened (money in), its settled watermark was advanced
+by cumulative vouchers the operator signed off-chain (the meter moves), and it
+was sealed and paid out (money back out to the right people, escrow emptied to
+zero, channel account reaped).
+
+That last step is the product's entire promise, and it is no longer a plan.
+
+Not yet started: the application itself — there is no UI and no live usage
+meter. That is the next and largest piece of work.
+
+---
+
+## The third gate: seal the channel and pay out — PASSED 2026-10-05
+
+Run against the same channel the first two gates left open.
+
+```
+payer    ATA :  999950   → 999978.5 TEST   (+28.5)
+channel  ATA :      50   →        —        (-50, escrow emptied)
+payee    ATA :       —   →    21.5 TEST    (+21.5)
+treasury ATA :       —   →       0 TEST    (unchanged)
+channel account: DEALLOCATED — the PDA no longer exists
+```
+
+`21.5 + 28.5 = 50`, exactly the deposit. The provider was paid the metered
+amount, the customer got the unused remainder back, and no tokens were stranded.
+
+| | |
+|---|---|
+| `settleAndSeal` tx | `3WjdkDYv9UCazfz9EQyZ7mPTnkdbU2vFVpseCyFRAYqnKJUcTfgHYUizvhayKKpPL5MR3qqGLp32xrhxESHJfZ8p` |
+| `distribute` tx | `51FcroWv457JrF9aARRxGqzUp8j8Azohtr1KD6q76bxeRjNDVzFPM4YsoSa2fESnHMDPyw4dULvt746stNdaX81A` |
+| Final watermark | 21.5 TEST (`21500000` atomic units) |
+
+This gate needed three attempts. Each failure is recorded in the table below;
+the treasury one is the interesting one, because the first two attempts were
+built on a hypothesis that turned out to be wrong.
+
+Reproduce with: **Actions → Devnet → Run workflow → `close`**.
 
 ---
 
@@ -201,18 +234,14 @@ Seven days remain, and the application has not been started.
 
 ## Next steps
 
-1. Re-run `close`. `settleAndSeal` already succeeded, so the script now detects
-   a SEALED channel and resumes at `distribute` rather than demanding a fresh
-   one.
-2. Confirm the unused remainder actually reaches the payer. `distribute` has a
-   `payerTokenAccount` among its writable accounts and `withdrawPayer`
-   (discriminator 8) is the pull path, but neither has been executed.
-3. Build the interface.
+1. **Build the interface.** This is now the critical path — seven days remain
+   and nothing user-facing exists yet.
+2. Exercise `withdrawPayer` and a distribution plan with real recipients, both
+   still UNVERIFIED, but neither blocks the application.
 
 ## Deliberately not done yet
 
-- No UI. The spec gates it behind a real channel, and until today there wasn't
-  one.
+- No UI. The spec gated it behind a real channel, and that gate is now passed.
 - No Vercel deployment.
 - No mainnet anything.
 

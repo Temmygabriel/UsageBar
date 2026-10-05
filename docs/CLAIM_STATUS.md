@@ -12,9 +12,9 @@ INFERRED   — follows from proven facts, but not directly demonstrated
 UNVERIFIED — not tested. This is the default. It is not a soft "probably fine".
 ```
 
-Last updated: **2026-10-05** (two gates passed — a real channel is open on
-devnet and its settled watermark has been advanced by real cumulative vouchers,
-both verified independently from raw chain state).
+Last updated: **2026-10-05** (three gates passed — a real channel was opened,
+its watermark advanced by real cumulative vouchers, and it was sealed and paid
+out, with every balance read back from raw chain state).
 
 ---
 
@@ -85,10 +85,10 @@ Verified 2026-10-05 by chain readback. Detail in
 | GitHub Actions can sign and send a devnet transaction using a repository secret | PROVEN |
 | No private key is committed; `local-wallet/` is gitignored and verified invisible to git | PROVEN |
 
-## UsageBar — two gates are proven
+## UsageBar — all three gates are proven
 
-Money can go in, and the meter can move. Everything below those does not yet,
-and stays listed so the gap remains visible.
+Money can go in, the meter can move, and the money comes back out to the right
+people. That is the product's entire promise, executed on devnet end to end.
 
 ### Gate 1 — open a channel and read it back
 
@@ -110,14 +110,30 @@ and stays listed so the gap remains visible.
 | The voucher is bound to this channel and to no other | **PROVEN** — the `channel_id` bytes inside the signed payload decode to exactly `7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo`; the program rejects a mismatch with error 232 |
 | The Gate 2 readback is independent of our own tooling | **PROVEN** — raw `getAccountInfo` from the local machine, with `settled` read by hand at byte offset 20, returned `18900000` |
 
+### Gate 3 — seal the channel and pay everyone out
+
+The full close, in two instructions. Run against the same channel Gate 2 left
+open, via transaction `51FcroWv457JrF9aARRxGqzUp8j8Azohtr1KD6q76bxeRjNDVzFPM4YsoSa2fESnHMDPyw4dULvt746stNdaX81A`.
+
+| Claim | Status |
+|---|---|
+| UsageBar can call `settleAndSeal` on Devnet | **PROVEN** — sealed at a final watermark of `21500000` atomic units (21.5 TEST), tx `3WjdkDYv9UCazfz9EQyZ7mPTnkdbU2vFVpseCyFRAYqnKJUcTfgHYUizvhayKKpPL5MR3qqGLp32xrhxESHJfZ8p`. `settleAndSeal` is not `settle`: it carries discriminator 4 and requires the **payee's** signature. The status byte was read back from chain as `1` (Sealed). |
+| UsageBar can call `distribute` on Devnet | **PROVEN** — tx `51FcroWv457JrF9aARRxGqzUp8j8Azohtr1KD6q76bxeRjNDVzFPM4YsoSa2fESnHMDPyw4dULvt746stNdaX81A`, confirmed |
+| The provider is paid exactly the metered amount | **PROVEN** — payee ATA went from nonexistent to `21.5 TEST`, which is the settled watermark over the payout watermark |
+| The customer gets the unused remainder back | **PROVEN** — payer ATA `999950` → `999978.5 TEST`, i.e. **+28.5 TEST**, exactly `deposit − settled` (`50 − 21.5`) |
+| The escrow is drained to zero | **PROVEN** — channel ATA `50 TEST` → gone; the account no longer exists |
+| A fully-closed channel is deallocated and its rent returned | **PROVEN** — the 256-byte channel account no longer exists after `distribute`. This requires `slot > open_slot + 1500`; the channel was old enough, so the PDA was reaped. |
+| The plan reveal hashes to the commitment made at `open` | **PROVEN** — the 4-byte empty-plan preimage hashes to `df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119`, byte-identical to the `distribution_hash` the channel had carried since it was opened. This independently confirms the preimage's wire layout. |
+| The devnet program's real treasury owner is known | **PROVEN** — `4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap`, recovered by finding those bytes in the deployed ProgramData ELF at offset 61435. It is also the program's upgrade authority. |
+
 ### Still not proven
 
 | Claim | Status |
 |---|---|
-| UsageBar can call `settle_and_seal` on Devnet | UNVERIFIED — `settle` is proven; `settleAndSeal` is a different instruction (discriminator 4) and additionally requires the **payee's** signature |
-| UsageBar can call `distribute` on Devnet | UNVERIFIED |
-| The unused remainder is actually recoverable by the payer | UNVERIFIED |
-| The devnet deployment accepts `distribute` despite the placeholder treasury owner | UNVERIFIED — the source cannot compile with `--features devnet` at all (build-time assert rejects the `0xBEEF` sentinel), so the live program was built differently and very likely carries that placeholder. Untested. Detail in [`ASSET_PROVENANCE.md`](ASSET_PROVENANCE.md). |
+| The unused remainder is recoverable via `withdrawPayer` (discriminator 8) | UNVERIFIED — the SEALED `distribute` path already refunds the payer directly, which is what Gate 3 proves. `withdrawPayer` is the *pull* path and is only needed before a full close. Not exercised. |
+| `requestClose` / `seal` (the timeout path, discriminators 5 and 6) | UNVERIFIED — the cooperative `settleAndSeal` path was used instead, so the payer-protection timeout is untested |
+| `topUp` (discriminator 3) | UNVERIFIED |
+| A distribution plan with actual recipients | UNVERIFIED — every run so far used an empty plan. The `recipient(32) || bps(u16)` layout is unit-tested but has never been executed on chain. |
 | The canonical run `canonical-usagebar-devnet-001` completes | UNVERIFIED |
 | The verifier passes against real evidence | UNVERIFIED |
 | The application deploys to Vercel and reaches devnet RPC | UNVERIFIED |

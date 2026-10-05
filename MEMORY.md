@@ -44,18 +44,28 @@ Classic SPL Token (`Tokenkeg...`), chosen over Token-2022 deliberately: the
 program restricts Token-2022 to an extension allow-list, and a plain mint
 cannot trip it.
 
-### Channel #1 state — moves as we settle
+### Channel #1 state — CLOSED AND GONE
 
 `salt 1`, `openSlot 507695832`, `bump 254`, deposit 50 TEST, grace period 60s.
 
-As of 2026-10-05: **status SEALED (1), settled 21.5 TEST, payoutWatermark 0**.
-`settleAndSeal` landed successfully, so **28.5 TEST of unused deposit is owed
-back to the payer** and 21.5 TEST to the payee. Both move on `distribute`. This
-is a *live, mutable* value — re-read it from chain rather than trusting this
-line.
+The full lifecycle ran on this channel and it is now **deallocated** — a
+`getAccountInfo` on `7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo` returns
+`null`. Do not expect to read it again. Final numbers, all read from chain:
 
-`settled` sits at **byte offset 20** of the 256-byte account (u64 LE), which is
-the quickest way to check by hand. `status` is byte offset 3.
+| Step | Watermark | Where |
+|---|---|---|
+| opened | 0 | — |
+| `settle` | 12.4 TEST | tx `3fBMYtCJKejFgKapjXzfQP7u51o1BeKGp3fBoZw6G4iK2uUoB9XpvBH57mPLKSR5idmasALHLKtfjPNgLoGJ5J3W` |
+| `settle` | 18.9 TEST | tx `3wesVbuGwEA9ETkAUUG1L1We6GSCVhb2ojimHRv7Bh468ryDJrTtLtHVQnRmYc62E7KJyKSwnSwsJCoKnyNn4uNG` |
+| `settleAndSeal` | 21.5 TEST, status → Sealed | tx `3WjdkDYv9UCazfz9EQyZ7mPTnkdbU2vFVpseCyFRAYqnKJUcTfgHYUizvhayKKpPL5MR3qqGLp32xrhxESHJfZ8p` |
+| `distribute` | payee **+21.5**, payer **+28.5**, escrow 0 | tx `51FcroWv457JrF9aARRxGqzUp8j8Azohtr1KD6q76bxeRjNDVzFPM4YsoSa2fESnHMDPyw4dULvt746stNdaX81A` |
+
+**To run the lifecycle again, open a NEW channel** — change the `salt` input on
+the `open-channel` job. Reusing salt 1 at the same `open_slot` is impossible
+anyway, since `open_slot` is a PDA seed and must be fresh.
+
+While it existed, `settled` sat at **byte offset 20** of the 256-byte account
+(u64 LE) and `status` at byte offset 3 — the quickest way to check by hand.
 
 ### Three distinct keys, easily confused
 

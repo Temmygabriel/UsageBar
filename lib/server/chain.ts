@@ -41,6 +41,9 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
   type Address,
+  type Base64EncodedWireTransaction,
+  type Instruction,
+  type InstructionWithSigners,
   type Rpc,
   type SolanaRpcApi,
 } from "@solana/kit";
@@ -73,8 +76,40 @@ const TOKEN_PROGRAM = TOKEN_PROGRAM_ADDRESS;
 const SYSTEM_PROGRAM = address("11111111111111111111111111111111");
 const INSTRUCTIONS_SYSVAR_ADDRESS = address(INSTRUCTIONS_SYSVAR);
 
-/** A decoded channel account, as `tools/lib/protocol.mjs` reads it. */
-export type DecodedChannel = ReturnType<typeof decodeChannel>;
+/**
+ * A decoded channel account, matching `decodeChannel` in `tools/lib/protocol.mjs`.
+ *
+ * Spelled out rather than written as `ReturnType<typeof decodeChannel>`. The
+ * decoder is plain JavaScript, and TypeScript infers a JS function's return type
+ * from the object literal it starts with — so the derived type would carry only
+ * the four header bytes and silently lose every field assigned afterwards. That
+ * is not a cosmetic loss: those are the fields the money arithmetic is made of.
+ *
+ * `distributionHash` is a hex string rather than bytes because that is what the
+ * decoder produces; bigints stay bigints, and become strings only at the HTTP
+ * boundary.
+ */
+export interface DecodedChannel {
+  readonly discriminator: number;
+  readonly version: number;
+  readonly bump: number;
+  readonly status: number;
+  readonly salt: bigint;
+  readonly deposit: bigint;
+  readonly settled: bigint;
+  readonly payoutWatermark: bigint;
+  readonly closureStartedAt: bigint;
+  readonly payerWithdrawnAt: bigint;
+  readonly gracePeriod: number;
+  readonly distributionHash: string;
+  readonly payer: string;
+  readonly payee: string;
+  readonly authorizedSigner: string;
+  readonly mint: string;
+  readonly rentPayer: string;
+  readonly openSlot: bigint;
+  readonly bytesConsumed: number;
+}
 
 // ---------------------------------------------------------------------------
 // RPC
@@ -100,7 +135,14 @@ async function signerFor(secretKey: Uint8Array) {
 }
 
 /**
- * Send a base64 wire transaction and wait until the cluster has confirmed it.
+ * Send an already-signed, base64-encoded wire transaction and wait until the
+ * cluster has confirmed it.
+ *
+ * The parameter is kit's branded `Base64EncodedWireTransaction` rather than a
+ * plain string, which is why callers pass `getBase64EncodedWireTransaction(tx)`
+ * instead of holding loose base64. The brand is doing real work: it is what
+ * stops a transaction signature, a blockhash or an address from being handed to
+ * `sendTransaction` by mistake.
  *
  * Polling rather than subscribing, for the reason in the file header. The
  * timeout is generous because Devnet is a shared, sometimes slow cluster, and
@@ -110,12 +152,11 @@ async function signerFor(secretKey: Uint8Array) {
  */
 async function sendAndConfirm(
   rpc: Rpc<SolanaRpcApi>,
-  wireTransaction: Uint8Array,
+  wireTransaction: Base64EncodedWireTransaction,
   { timeoutMs = 60_000, intervalMs = 1_000 } = {},
 ): Promise<string> {
-  const base64 = Buffer.from(wireTransaction).toString("base64");
   const signature = await rpc
-    .sendTransaction(base64, { encoding: "base64", preflightCommitment: "confirmed" })
+    .sendTransaction(wireTransaction, { encoding: "base64", preflightCommitment: "confirmed" })
     .send();
 
   const deadline = Date.now() + timeoutMs;
@@ -176,7 +217,10 @@ export async function readChannel(
   const account = await fetchChannelAccount(config, channelAddress);
   if (account === null) return null;
 
-  const channel = decodeChannel(account.data, getAddressDecoder());
+  // The assertion is required, not lazy: `decodeChannel` is JavaScript, so
+  // TypeScript sees only the header literal it starts from. `DecodedChannel`
+  // above is the full account and is the thing every caller is written against.
+  const channel = decodeChannel(account.data, getAddressDecoder()) as DecodedChannel;
   return { channel, bytes: account.data.length };
 }
 
@@ -224,7 +268,10 @@ export async function fundWallet(
     mint,
   });
 
-  const instructions = [];
+  // Annotated rather than inferred: an empty array literal with no annotation is
+  // `any[]` in the places TypeScript cannot narrow, which is every place it
+  // matters here.
+  const instructions: Instruction[] = [];
 
   // SOL first, in its own transaction: it is what pays for the token account's
   // rent, so it must land before anything that spends it.
@@ -247,7 +294,7 @@ export async function fundWallet(
   );
   const solSigned = await signTransactionMessageWithSigners(solMessage);
   const solSignature = getSignatureFromTransaction(solSigned);
-  await sendAndConfirm(rpc, getTransactionEncoder().encode(solSigned));
+  await sendAndConfirm(rpc, getBase64EncodedWireTransaction(solSigned));
 
   // Then the token account and the TEST, together.
   const tokenInstructions = [
@@ -280,7 +327,7 @@ export async function fundWallet(
   );
   const tokenSigned = await signTransactionMessageWithSigners(tokenMessage);
   const tokenSignature = getSignatureFromTransaction(tokenSigned);
-  await sendAndConfirm(rpc, getTransactionEncoder().encode(tokenSigned));
+  await sendAndConfirm(rpc, getBase64EncodedWireTransaction(tokenSigned));
 
   return {
     solSignature,
@@ -595,7 +642,7 @@ export async function commitUsage(
 
   const signed = await signTransactionMessageWithSigners(message);
   const signature = getSignatureFromTransaction(signed);
-  await sendAndConfirm(rpc, getTransactionEncoder().encode(signed));
+  await sendAndConfirm(rpc, getBase64EncodedWireTransaction(signed));
 
   // Read it back rather than trusting the number we asked for. Section 12: the
   // interface may not show a result that has not been read from chain.
@@ -687,7 +734,7 @@ export async function closeChannel(
   // voucher rather than signing one that does not advance.
   const finalCumulative = channel.settled;
 
-  const sealInstructions = [];
+  const sealInstructions: (Instruction & InstructionWithSigners)[] = [];
   if (finalCumulative > 0n) {
     const voucherPayload = buildVoucherPayload(
       addressEncoder,
@@ -728,7 +775,7 @@ export async function closeChannel(
   );
   const sealSigned = await signTransactionMessageWithSigners(sealMessage);
   const sealSignature = getSignatureFromTransaction(sealSigned);
-  await sendAndConfirm(rpc, getTransactionEncoder().encode(sealSigned));
+  await sendAndConfirm(rpc, getBase64EncodedWireTransaction(sealSigned));
 
   const sealed = await readChannel(config, channelAddress);
   if (sealed === null || sealed.channel.status !== 1) {
@@ -815,7 +862,7 @@ export async function closeChannel(
    * somewhere to receive their tokens and costs only rent. Idempotent, so a
    * retry is harmless.
    */
-  const createInstructions = [];
+  const createInstructions: Instruction[] = [];
   if (beforePayee === 0n) {
     const info = await rpc.getAccountInfo(payeeTokenAccount, { encoding: "base64" }).send();
     if (info.value === null) {
@@ -856,7 +903,7 @@ export async function closeChannel(
   );
   const distributeSigned = await signTransactionMessageWithSigners(distributeMessage);
   const distributeSignature = getSignatureFromTransaction(distributeSigned);
-  await sendAndConfirm(rpc, getTransactionEncoder().encode(distributeSigned));
+  await sendAndConfirm(rpc, getBase64EncodedWireTransaction(distributeSigned));
 
   const afterPayee = await balanceOf(payeeTokenAccount);
   const afterPayer = await balanceOf(payerTokenAccount);

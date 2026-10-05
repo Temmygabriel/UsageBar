@@ -17,6 +17,7 @@
  */
 
 import { buildOpenTransaction, closeChannel, commitUsage, readChannel } from "../../../lib/server/chain";
+import type { DecodedChannel } from "../../../lib/server/chain";
 import type { ServerConfig } from "../../../lib/server/env";
 import {
   jsonError,
@@ -51,19 +52,18 @@ function describeService(config: ServerConfig) {
 }
 
 /** A channel account as the interface sees it. Bigints travel as strings. */
-function describeChannel(channel: Record<string, unknown>) {
+function describeChannel(channel: DecodedChannel) {
   return {
-    address: String(channel.address ?? ""),
-    payer: String(channel.payer),
-    payee: String(channel.payee),
-    authorizedSigner: String(channel.authorizedSigner),
-    mint: String(channel.mint),
-    deposit: String(channel.deposit),
-    settled: String(channel.settled),
-    payoutWatermark: String(channel.payoutWatermark),
-    status: Number(channel.status),
-    openSlot: String(channel.openSlot),
-    salt: String(channel.salt),
+    payer: channel.payer,
+    payee: channel.payee,
+    authorizedSigner: channel.authorizedSigner,
+    mint: channel.mint,
+    deposit: channel.deposit.toString(),
+    settled: channel.settled.toString(),
+    payoutWatermark: channel.payoutWatermark.toString(),
+    status: channel.status,
+    openSlot: channel.openSlot.toString(),
+    salt: channel.salt.toString(),
   };
 }
 
@@ -96,7 +96,7 @@ export async function GET(request: Request): Promise<Response> {
     return jsonOk({
       service: describeService(config),
       channel: {
-        ...describeChannel(read.channel as unknown as Record<string, unknown>),
+        ...describeChannel(read.channel),
         address: channelAddress,
         statusName: STATUS_NAMES[read.channel.status] ?? "Unknown",
         bytes: read.bytes,
@@ -120,22 +120,30 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError(400, error instanceof Error ? error.message : String(error));
   }
 
-  // Validate the address before loading configuration, so a malformed request
-  // is a 400 even on a deployment that has no keys — the two failures are
-  // unrelated and should not be reported as each other.
+  // Validate the request's addresses before loading configuration, so a
+  // malformed request is a 400 even on a deployment that has no keys — the two
+  // failures are unrelated and should not be reported as each other. The
+  // alternative, letting `requireString` throw inside the handler below, would
+  // report a client error as a 502 "the server is broken".
   let address: string | null = null;
-  if (action === "open") {
-    try {
+  let channel: string | null = null;
+  try {
+    if (action === "open") {
       address = requireAddress(body, "address");
-    } catch (error) {
-      return jsonError(400, error instanceof Error ? error.message : String(error));
+    } else if (action === "usage" || action === "close") {
+      channel = requireString(body, "channel");
     }
+  } catch (error) {
+    return jsonError(400, error instanceof Error ? error.message : String(error));
   }
 
   return withConfig(async (config) => {
     switch (action) {
       case "open": {
-        const built = await buildOpenTransaction(config, address as string);
+        if (address === null) {
+          return jsonError(400, '"address" is required to open a tab.');
+        }
+        const built = await buildOpenTransaction(config, address);
         return jsonOk({
           service: describeService(config),
           // Unsigned, and the payer is the wallet that will sign it.
@@ -148,12 +156,14 @@ export async function POST(request: Request): Promise<Response> {
       }
 
       case "usage": {
-        const channel = requireString(body, "channel");
+        if (channel === null) {
+          return jsonError(400, '"channel" is required to meter usage.');
+        }
         // The client reports elapsed time; the server decides the amount and
         // clamps it to the deposit. A caller who sends a huge number only bills
         // themselves more, and can never exceed what they authorized.
         const seconds = optionalPositiveNumber(body, "seconds", 3);
-        const result = await commitUsage(config, channel, seconds);
+        const result = await commitUsage(config, channel);
         return jsonOk({
           advanced: result.advanced,
           settled: result.settled,
@@ -164,7 +174,9 @@ export async function POST(request: Request): Promise<Response> {
       }
 
       case "close": {
-        const channel = requireString(body, "channel");
+        if (channel === null) {
+          return jsonError(400, '"channel" is required to close a tab.');
+        }
         const result = await closeChannel(config, channel);
         return jsonOk({
           sealSignature: result.sealSignature,

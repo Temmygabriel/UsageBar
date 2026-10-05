@@ -11,7 +11,7 @@
  * sometimes, depending on how the bundler resolved the dynamic import.
  *
  * So the encoder is copied here, deliberately narrow (encode only — the client
- * never needs to decode), and `tests/protocol-bytes.test.ts` asserts that both
+ * never needs to decode), and `tests/protocol-bytes.test.js` asserts that both
  * implementations produce identical output for the same inputs. That test is
  * what makes the duplication safe: the two cannot drift without CI saying so.
  */

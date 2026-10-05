@@ -23,12 +23,127 @@ zero, channel account reaped).
 
 That last step is the product's entire promise, and it is no longer a plan.
 
-Not yet started: the application itself — there is no UI and no live usage
-meter. That is the next and largest piece of work.
+The application now drives that same lifecycle from a browser. A visitor
+connects their own wallet, the app stocks it with Devnet funds, they sign the
+deposit themselves, the meter advances on signed vouchers, and they close —
+getting the unused remainder back. The customer's key never leaves their
+wallet.
 
-Not yet started: the live chain wiring. The interface shell now exists and is
-verifiable, but it is not yet connected to Devnet — the tab renders in `READY`
-and says so rather than advancing on optimism.
+Not yet deployed. Not yet run end to end from a browser by a human.
+
+---
+
+## The chain adapter — built 2026-10-05
+
+The interface is no longer describing a product; it is operating one.
+
+```
+lib/server/env.ts          configuration and secret handling
+lib/server/chain.ts        every chain operation, in one place
+lib/server/http.ts         request shapes; bigints cross as strings
+lib/server/rate-limit.ts   the faucet's (honest) limits
+lib/wallet.ts              the browser's wallet bridge
+lib/use-session.ts         the state machine, driven by chain reads
+lib/client-api.ts          typed access to the API
+app/api/faucet/route.ts    one click, funded
+app/api/session/route.ts   open · usage · close · read
+app/api/wallet/route.ts    what a wallet holds, so we can guide the next step
+```
+
+### Who holds which key
+
+A payment channel has three keys and they are not interchangeable, so the split
+between browser and server is forced by the protocol rather than chosen:
+
+| Key | Holds it | Why |
+|---|---|---|
+| payer | **the visitor's wallet** | The product's whole point. The deposit leaves their wallet under their own signature. |
+| payee | server | `settleAndSeal` is a cooperative close and requires the payee's signature. |
+| authorized_signer | server | Signs usage vouchers **off chain**. This is what makes metering cheap. |
+
+The last two are one key here — the provider signs the meter and receives the
+money. The protocol keeps the roles separate; a real provider would too.
+
+**The customer does not sign the close, and does not need to.** Their protection
+is structural rather than a second signature: a voucher can never exceed the
+deposit (error 235), and everything unbilled returns to their token account
+automatically during `distribute`. That is why `distribute` is permissionless —
+closing late, or not closing at all, does not cost the customer the remainder.
+
+### The server builds, the wallet signs
+
+`open` is built server-side and returned **unsigned**, with the customer as fee
+payer and holder of both required signatures. The browser hands the bytes to the
+wallet, which shows the customer exactly what they are approving: a deposit into
+an escrow account derived from their own key.
+
+This means one implementation of the PDA seeds, the argument encoding and the
+account metas exists, it is server-side, and it is the one under test. The
+browser carries no Solana library at all.
+
+### The wallet handshake tries two paths
+
+Wallet Standard (`solana:signAndSendTransaction`, raw bytes) is tried first,
+then the legacy `request` form with a base58 message. Which one exists depends
+on the visitor's wallet and its version.
+
+**This is the one part of the system CI cannot cover** — it needs a real browser
+with a real extension. Two paths is a deliberate hedge against the failure being
+a demo that does not work in front of an audience.
+
+### What moved, and what was deliberately duplicated
+
+`encodeOpenArgs`, `channelSeeds`, the System and SPL transfer encoders and the
+token-account reader now live in `tools/lib/protocol.mjs` beside every other
+byte layout the program pins, and `devnet-open-channel.mjs` imports them instead
+of keeping its own copies. A layout that exists twice will disagree with itself
+eventually.
+
+Two copies remain, and the reason is a real constraint rather than convenience:
+`base58Encode` is duplicated into `lib/base58.ts` because `protocol.mjs` carries
+a `node:crypto` import that must not enter a browser bundle.
+`tests/protocol-bytes.test.js` asserts the two produce identical output **and**
+round-trip through the tooling's decoder, so encoding agreement alone cannot be
+satisfied by two identically wrong implementations.
+
+### The first push of the adapter did not typecheck
+
+Worth recording, because it is a property of this project rather than a slip:
+the development machine cannot run `tsc`, so **CI is the only compiler here** and
+a new module's first push is effectively its first compile. Four classes of real
+error came back, all of them in `lib/server/chain.ts`:
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Property 'settled' does not exist` … (×21) | `ReturnType<typeof decodeChannel>` — the decoder is JavaScript, and TypeScript types a JS function from the object literal it *starts* with, so the derived type carried the four header bytes and nothing else | `DecodedChannel` is written out in full |
+| `'string' is not assignable to 'Base64EncodedWireTransaction'` | `sendTransaction` takes kit's *branded* base64 type, not a plain string | `sendAndConfirm` takes the branded type; callers pass `getBase64EncodedWireTransaction(tx)` |
+| `implicitly has type 'any[]'` (×3) | `const x = []` with no annotation | annotated as `Instruction[]` |
+| `ReadonlyUint8Array` is missing `set`, `fill`, … (×5) | `getTransactionEncoder()` returns a readonly view; `sendAndConfirm` wanted writable bytes | removed by the branded-base64 change above |
+
+The first row is the instructive one. It is not a typo — it is TypeScript
+declining to see fields that a `.mjs` file assigns *after* the literal. The
+derived type looked entirely reasonable and was wrong about every field the
+money arithmetic is made of, which is precisely the kind of quiet wrongness this
+project audits for, so the fix is an explicit interface rather than a cast.
+
+Fixing it also removed a `as unknown as Record<string, unknown>` in
+`app/api/session/route.ts` that had only been there to work around the broken
+type. Removing it was the point: a double cast that exists to satisfy a wrong
+type is a place where a real mistake can hide.
+
+### The meter cannot flatter itself
+
+- It follows the **confirmed** watermark only, read back from chain after each
+  transaction. There is no interpolation between reads, and no client-side
+  estimate of what the bill "should" be by now.
+- A failed tick **stops the loop** and says why. Continuing to tick against a
+  chain we cannot reach would leave a stale number on screen looking current.
+- A failed close returns to **ACTIVE, never SETTLED**. The channel is still open
+  and still holds the money, and claiming otherwise is the exact failure this
+  project exists to avoid.
+- An unconfigured deployment answers **503 with the reason**, so the interface
+  can say what is missing instead of failing generically — or, far worse,
+  inventing a number.
 
 ---
 
@@ -299,21 +414,25 @@ Seven days remain, and the application has not been started.
 
 ## Next steps
 
-1. **Connect the interface to Devnet.** The shell exists; it needs a chain
-   adapter so the tab reads a real channel instead of a proposed ceiling.
-   Adding `@solana/kit` changes `package-lock.json`, so the lockfile has to be
-   regenerated by a CI job rather than locally.
-2. **Deploy to Vercel.** The account exists and the repository is already
-   linked to it; what is needed is a Vercel token so the deploy can be driven
-   the same way the GitHub work is.
+1. **Deploy to Vercel.** The account exists and the repository is already linked
+   to it; what is needed is a Vercel token so the deploy can be driven the same
+   way the GitHub work is. The deployment also needs `DEVNET_PAYER_KEYPAIR` and
+   `DEVNET_OPERATOR_KEYPAIR` set as environment variables, which is the whole
+   reason the token is worth having — it is the same handover as the GitHub one.
+2. **Run the demo from a real browser.** Connect, faucet, open, meter, close.
+   This is the one path CI cannot cover: it needs a real extension and a real
+   wallet, and the wallet handshake is written with two signing paths precisely
+   because that is the part most likely to differ between visitors.
 3. Exercise `withdrawPayer` and a distribution plan with real recipients, both
    still UNVERIFIED, but neither blocks the application.
 
 ## Deliberately not done yet
 
-- No UI. The spec gated it behind a real channel, and that gate is now passed.
-- No Vercel deployment.
-- No mainnet anything.
+- **No Vercel deployment.** Blocked on the token, not on the work.
+- **No mainnet anything.** Devnet only, and the interface says so in the header.
+- **No claim of a browser run.** Until a human has connected a real wallet to a
+  deployed build and closed a real tab, the honest status of the wallet
+  handshake is "written and reviewed, never exercised".
 
 ---
 

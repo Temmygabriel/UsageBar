@@ -1,0 +1,88 @@
+name: Devnet
+
+# MANUAL TRIGGER ONLY. This is deliberate and must stay this way.
+#
+# Every job here reads a wallet private key from repository secrets. If this
+# workflow also ran on `pull_request`, anyone able to push a branch to this
+# repository could edit this file on that branch and exfiltrate the keys.
+# GitHub does not pass secrets to fork pull requests, but a same-repository
+# branch still gets them, and relying on that distinction is a thinner defence
+# than simply not running here.
+#
+# workflow_dispatch means a human with write access must press the button.
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Which devnet task to run"
+        type: choice
+        required: true
+        default: open-channel
+        options:
+          - test-token
+          - open-channel
+      salt:
+        description: "Channel salt (open-channel only). Change it to open another channel."
+        type: string
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devnet
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: ${{ inputs.script }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # The official payment-channels client is not used: it pins
+      # @solana/kit ^6.1.0 while the current release is 8.4.0. Our scripts build
+      # instructions directly from the program's own IDL instead.
+      #
+      # --no-save and --no-package-lock keep package.json and package-lock.json
+      # exactly as they are. The main CI job runs `npm ci`, which fails if the
+      # lockfile and package.json disagree, so touching them here would break
+      # the build.
+      - name: Install Solana tooling without touching the lockfile
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund \
+            @solana/kit@8.4.0 \
+            @solana-program/token@0.17.0 \
+            @solana-program/system@0.15.0
+
+      # If the step above ever did modify the manifest, fail here rather than
+      # letting the main CI break mysteriously on an unrelated later commit.
+      - name: Confirm the lockfile was not modified
+        run: |
+          if ! git diff --quiet -- package.json package-lock.json; then
+            echo "::error::package.json or package-lock.json was modified by this job."
+            git diff -- package.json package-lock.json
+            exit 1
+          fi
+          echo "package.json and package-lock.json are untouched."
+
+      - name: Run the devnet script
+        run: |
+          case "${{ inputs.script }}" in
+            test-token)   node tools/devnet-bootstrap.mjs ;;
+            open-channel) node tools/devnet-open-channel.mjs ;;
+            *) echo "::error::Unknown script '${{ inputs.script }}'"; exit 1 ;;
+          esac
+        env:
+          SALT: ${{ inputs.salt }}
+          DEVNET_PAYER_KEYPAIR: ${{ secrets.DEVNET_PAYER_KEYPAIR }}
+          DEVNET_TEST_MINT_KEYPAIR: ${{ secrets.DEVNET_TEST_MINT_KEYPAIR }}
+          DEVNET_OPERATOR_KEYPAIR: ${{ secrets.DEVNET_OPERATOR_KEYPAIR }}
+          DEVNET_PAYEE_KEYPAIR: ${{ secrets.DEVNET_PAYEE_KEYPAIR }}

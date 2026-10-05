@@ -15,8 +15,25 @@
 // Fixed addresses
 // ---------------------------------------------------------------------------
 
-export const PAYMENT_CHANNELS_PROGRAM =
-  process.env.PROGRAM_ID ?? "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX";
+/**
+ * Read an environment variable, treating an empty or whitespace-only value as
+ * absent.
+ *
+ * `??` is not enough here. A GitHub Actions workflow exports an optional input
+ * that the user cleared as `NAME=""`, which is defined-but-empty, so `??` keeps
+ * the empty string and a downstream `address("")` throws
+ * `Expected base58-encoded address string of length in the range [32, 44].
+ * Actual length: 0.` — a confusing way to learn that a field was left blank.
+ */
+export function envOr(name, fallback) {
+  const raw = process.env[name];
+  return raw === undefined || raw.trim() === "" ? fallback : raw.trim();
+}
+
+export const PAYMENT_CHANNELS_PROGRAM = envOr(
+  "PROGRAM_ID",
+  "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+);
 
 /** The native precompile. `consts.rs` pins this exact address. */
 export const ED25519_PRECOMPILE = "Ed25519SigVerify111111111111111111111111111";

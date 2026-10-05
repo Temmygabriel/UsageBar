@@ -59,6 +59,7 @@ import {
   decodeSecretKey,
   encodeDistributeData,
   encodeSettleAndSealData,
+  envOr,
   signVoucher,
 } from "./lib/protocol.mjs";
 import { createHash } from "node:crypto";
@@ -67,11 +68,11 @@ import { createHash } from "node:crypto";
 // Configuration
 // ---------------------------------------------------------------------------
 
-const RPC_URL = process.env.DEVNET_RPC_URL ?? "https://api.devnet.solana.com";
-const WS_URL = process.env.DEVNET_WS_URL ?? "wss://api.devnet.solana.com";
+const RPC_URL = envOr("DEVNET_RPC_URL", "https://api.devnet.solana.com");
+const WS_URL = envOr("DEVNET_WS_URL", "wss://api.devnet.solana.com");
 
 const CHANNEL = address(
-  process.env.CHANNEL ?? "7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo",
+  envOr("CHANNEL", "7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo"),
 );
 
 /**
@@ -79,10 +80,18 @@ const CHANNEL = address(
  * channel's current watermark — a voucher that does not advance it is rejected
  * with error 234.
  */
-const FINAL_CUMULATIVE = BigInt(process.env.FINAL_CUMULATIVE ?? "21500000");
+const FINAL_CUMULATIVE = BigInt(envOr("FINAL_CUMULATIVE", "21500000"));
 
 /** 0 means the voucher never expires. */
-const EXPIRES_AT = BigInt(process.env.EXPIRES_AT ?? "0");
+const EXPIRES_AT = BigInt(envOr("EXPIRES_AT", "0"));
+
+/**
+ * The treasury owner. Blank (the workflow's default) means the 0xBEEF
+ * placeholder the deployed program almost certainly carries; override with
+ * TREASURY_OWNER once the program ships a real one.
+ */
+const TREASURY_OWNER_INPUT = envOr("TREASURY_OWNER", "");
+const USING_PLACEHOLDER_TREASURY = TREASURY_OWNER_INPUT === "";
 
 const DECIMALS = 6;
 const format = (atomic) => `${Number(atomic) / 10 ** DECIMALS} TEST`;
@@ -174,12 +183,13 @@ const [payeeTokenAccount] = await findAssociatedTokenPda({
 });
 
 /**
- * The treasury owner. Defaults to the 0xBEEF placeholder the deployed program
- * almost certainly carries; override with TREASURY_OWNER once the program
- * ships a real one.
+ * The treasury owner. Defaults to the 0xBEEF placeholder when the input is
+ * blank.
  */
 const TREASURY_OWNER = address(
-  process.env.TREASURY_OWNER ?? base58Encode(Buffer.from(TREASURY_OWNER_SENTINEL_HEX, "hex")),
+  USING_PLACEHOLDER_TREASURY
+    ? base58Encode(Buffer.from(TREASURY_OWNER_SENTINEL_HEX, "hex"))
+    : TREASURY_OWNER_INPUT,
 );
 const [treasuryTokenAccount] = await findAssociatedTokenPda({
   owner: TREASURY_OWNER,
@@ -330,7 +340,7 @@ console.log("");
 
 console.log(`    treasury owner     : ${TREASURY_OWNER}`);
 console.log(`    treasury token acct: ${treasuryTokenAccount}`);
-if (!process.env.TREASURY_OWNER) {
+if (USING_PLACEHOLDER_TREASURY) {
   console.log("");
   console.log("    NOTE: this is the 0xBEEF placeholder from constants.rs, not a real");
   console.log("    owner. Any dust sent there is permanently unspendable. Whether the");

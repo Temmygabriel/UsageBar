@@ -1,0 +1,109 @@
+name: Dependencies
+
+# WHY THIS EXISTS
+#
+# The development machine has ~0.6 GB of free RAM and `npm install` hangs on it
+# (build spec Section 1.5). So dependencies cannot be added locally, and the
+# lockfile cannot be regenerated locally either.
+#
+# That matters more than it sounds, because CI runs `npm ci`, which fails when
+# package.json and package-lock.json disagree. Editing package.json by hand and
+# pushing would therefore turn the build red until someone with a working
+# machine regenerated the lockfile.
+#
+# This workflow adds a dependency and regenerates the lockfile *together*, in
+# one commit, so the pair is never inconsistent — not even for a single push.
+#
+# MANUAL TRIGGER ONLY. Despite reading no secrets, this job has
+# `contents: write` and commits to the default branch. Anything that can push
+# to the repository could otherwise edit this file on a branch and use it to
+# write arbitrary commits, so it stays behind a human pressing the button —
+# the same reasoning as .github/workflows/devnet.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Packages to add, space-separated, e.g. '@solana/kit@8.4.0 @solana-program/token@0.17.0'"
+        type: string
+        required: true
+      note:
+        description: "Short reason, used in the commit message"
+        type: string
+        required: false
+        default: "add runtime dependency"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deps
+  cancel-in-progress: false
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A token that can push. The default GITHUB_TOKEN is sufficient here
+          # because this is a same-repository write and never a fork.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      # `npm install --save` writes package.json AND package-lock.json in one
+      # pass. That is the whole point: the two can never drift apart in a
+      # commit, so `npm ci` on the next run still succeeds.
+      - name: Add dependencies and regenerate the lockfile
+        run: npm install --save --no-audit --no-fund ${{ inputs.packages }}
+
+      # Verify the result before committing it. A dependency that breaks the
+      # typecheck or the build should be caught here, not on the next push.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SOLANA_CLUSTER: devnet
+
+      - name: Confirm the lockfile is now consistent with the manifest
+        run: |
+          # `npm ci` is the real test: it is what CI runs, and it fails loudly
+          # if the lockfile and package.json disagree. Running it here means a
+          # bad install is caught before the commit rather than after.
+          rm -rf node_modules
+          npm ci --no-audit --no-fund
+
+      - name: Commit and push
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "::notice::Nothing changed; the requested versions were already present."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(deps): ${{ inputs.note }}"
+          git push
+
+      - name: Summarise
+        run: |
+          {
+            echo "### Dependencies updated"
+            echo ""
+            echo "Requested: \`${{ inputs.packages }}\`"
+            echo ""
+            echo "\`\`\`"
+            node -e "const p=require('./package.json');console.log(JSON.stringify(p.dependencies,null,2))"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"

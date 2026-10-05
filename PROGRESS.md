@@ -1,0 +1,159 @@
+# UsageBar — Progress Log
+
+**Last updated:** 2026-10-05
+**Submission deadline:** 2026-10-12
+**Repo:** <https://github.com/Temmygabriel/UsageBar>
+**Build spec:** `USAGEBAR_BUILD_SPEC.md`
+
+> This file is the running log. It is updated as work happens, not at the end.
+> The authoritative record of what is *proven* is
+> [`docs/CLAIM_STATUS.md`](docs/CLAIM_STATUS.md). If the two ever disagree,
+> CLAIM_STATUS wins and this file is wrong.
+
+---
+
+## Where we are right now
+
+**The protocol gate is PASSED.** A real payment channel is open on devnet and
+has been read back from chain. This was the single thing everything else waited
+behind.
+
+Not yet started: the application itself. There is no UI, no usage meter, no
+voucher signing, and no settlement. Those come next.
+
+---
+
+## The gate: open one real channel — PASSED 2026-10-05
+
+| | |
+|---|---|
+| Channel | `7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo` |
+| Transaction | `2Uoz4SE93ct5v3RrXQnzFhy8Dn4bwi8FBcf817Vm3SjNm1Umi2q9jzxLF95SdEsCC8r2KsKHDYKSo8JaNuDLgoh` |
+| Opened at slot | `507695832` |
+| Deposit | 50 TEST |
+| Grace period | 60 seconds |
+
+Read back from chain: 256 bytes, discriminator `1`, version `1`, bump `254`,
+status `0` (Open), every party field matching, `settled` and `payoutWatermark`
+both zero.
+
+**The strongest evidence is that the tokens moved:**
+
+```
+payer   ATA : 1000000 → 999950 TEST
+channel ATA :       0 →     50 TEST
+```
+
+A successful transaction is not proof that anything worked. Money leaving one
+account and arriving in another is.
+
+Verified two independent ways: by our CI job, and by a raw `getAccountInfo`
+RPC call from the local machine that does not use our own code at all.
+
+Reproduce with: **Actions → Devnet → Run workflow → `open-channel`**.
+
+---
+
+## Milestones
+
+### 2026-10-05 — Protocol audit, before any code
+
+The build spec (Section 0A) requires a 15-report audit *before* implementation.
+Completed, and recorded in `docs/AUDIT_REPORT.md`, `docs/PROTOCOL_DISCOVERY.md`
+and `docs/CLAIM_STATUS.md`. The audit cleared the spec's single largest
+projected blocker by confirming the program is genuinely deployed and in use on
+devnet.
+
+### 2026-10-05 — Phase 0 scaffolding
+
+Next.js app skeleton, a protocol-independent money-arithmetic module with 24
+passing tests, and a CI job running typecheck, test and build. All heavy work
+runs in GitHub Actions; the local machine cannot do it.
+
+### 2026-10-05 — Devnet identity and test token
+
+Generated devnet keypairs, funded them from the official faucet, and created a
+purpose-built `TEST` mint. Full detail and chain evidence in
+[`docs/ASSET_PROVENANCE.md`](docs/ASSET_PROVENANCE.md).
+
+### 2026-10-05 — Protocol interface established
+
+Read the program's own IDL and source rather than relying on documentation.
+This corrected the build spec in several places and is recorded in
+`docs/CLAIM_STATUS.md` under "Protocol — instruction-level facts".
+
+### 2026-10-05 — The gate passed
+
+One real channel opened on devnet and read back. Three attempts were needed;
+the failures and their causes are logged below.
+
+---
+
+## Failures so far, and what they cost
+
+Recorded because the causes are easy to hit again.
+
+| Attempt | Failure | Cause |
+|---|---|---|
+| 1 | `Expected base58-encoded address string... Actual length: 15` | A signer *object* was passed where a raw instruction account needs a plain address. The codec stringified it to `"[object Object]"` — 15 characters. |
+| 2 | `custom program error: 0xc9` | `0xc9` = 201 = `gracePeriodMustBeNonZero`. The grace period was passed as `0`. |
+| 3 | passed | — |
+
+---
+
+## Known risks
+
+### The treasury owner — unresolved, blocks `distribute`
+
+The program source contains a build-time assert that **rejects the `0xBEEF`
+treasury sentinel**, and the `devnet` configuration block sets exactly that
+sentinel. So the published source cannot be compiled for devnet at all, which
+means the live devnet program was built some other way and very likely carries
+the placeholder.
+
+`distribute` pays rounding residuals to `ATA(TREASURY_OWNER, mint, ...)`. If the
+placeholder is in force, that address is derivable and its token account can be
+created — so `distribute` may still work — but anything sent there is
+permanently unspendable.
+
+**This is a hypothesis, not a finding.** It is settled by running `distribute`
+against devnet. Detail in [`docs/ASSET_PROVENANCE.md`](docs/ASSET_PROVENANCE.md).
+
+### Time
+
+Seven days remain, and the application has not been started.
+
+---
+
+## Next steps
+
+1. Produce a cumulative voucher the program accepts, and settle with it. This
+   requires the Ed25519 precompile in the same transaction — a requirement
+   absent from the build spec.
+2. Run `settleAndSeal`, then `distribute`, and find out what the treasury
+   situation really is.
+3. Confirm the unused remainder is actually recoverable by the payer.
+4. Only then: build the interface.
+
+## Deliberately not done yet
+
+- No UI. The spec gates it behind a real channel, and until today there wasn't
+  one.
+- No Vercel deployment.
+- No mainnet anything.
+
+---
+
+## How to reproduce any of this
+
+Heavy work does not run locally — the development machine has about 0.6 GB of
+free RAM and `npm install` hangs on it. Everything runs in GitHub Actions.
+
+| Task | How |
+|---|---|
+| Typecheck, test, build | Automatic on push to `main` |
+| Create the test token | Actions → **Devnet** → `test-token` |
+| Open a channel | Actions → **Devnet** → `open-channel` |
+
+The Devnet workflow is manual-trigger only, because it reads private keys from
+repository secrets.

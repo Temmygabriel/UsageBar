@@ -12,8 +12,8 @@ INFERRED   — follows from proven facts, but not directly demonstrated
 UNVERIFIED — not tested. This is the default. It is not a soft "probably fine".
 ```
 
-Last updated: **2026-10-05** (devnet test token created and verified from chain
-readback; instruction-level facts established from the IDL and program source).
+Last updated: **2026-10-05** (the protocol gate passed — a real channel is open
+on devnet and was read back from chain, verified independently).
 
 ---
 
@@ -84,14 +84,18 @@ Verified 2026-10-05 by chain readback. Detail in
 | GitHub Actions can sign and send a devnet transaction using a repository secret | PROVEN |
 | No private key is committed; `local-wallet/` is gitignored and verified invisible to git | PROVEN |
 
-## UsageBar — UNVERIFIED
+## UsageBar — the gate is proven
 
-**None of the following has been attempted.** This is the honest position.
+Opening a channel now works. Everything below it does not yet, and stays listed
+so the gap remains visible.
 
 | Claim | Status |
 |---|---|
-| UsageBar can open a channel on Devnet | UNVERIFIED |
-| UsageBar can read a channel back from chain | UNVERIFIED |
+| UsageBar can open a channel on Devnet | **PROVEN** — channel `7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo`, opened at slot `507695832` by transaction `2Uoz4SE93ct5v3RrXQnzFhy8Dn4bwi8FBcf817Vm3SjNm1Umi2q9jzxLF95SdEsCC8r2KsKHDYKSo8JaNuDLgoh` |
+| UsageBar can read a channel back from chain | **PROVEN** — 256 bytes decoded, matching `Channel::LEN`; discriminator `1`, version `1`, bump `254`, status `0` (Open), all party fields correct, `settled` and `payoutWatermark` zero |
+| Opening a channel actually moves the deposit | **PROVEN** — payer ATA `1000000` → `999950` TEST; channel ATA `0` → `50` TEST. A successful transaction is not proof that anything worked; tokens changing accounts is. |
+| The readback is independent of our own tooling | **PROVEN** — re-verified by a raw `getAccountInfo` RPC call from the local machine, which does not execute any of our code |
+| The channel PDA derivation matches the program's | **PROVEN** — the program re-derives the address from the seeds and rejects a mismatch (error 2000); it accepted ours |
 | UsageBar can produce a cumulative voucher that the program accepts | UNVERIFIED |
 | UsageBar can call `settle_and_seal` on Devnet | UNVERIFIED |
 | UsageBar can call `distribute` on Devnet | UNVERIFIED |

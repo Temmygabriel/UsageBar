@@ -17,17 +17,22 @@
  * this stays out of the typecheck without needing a declaration file.
  */
 
-import { createPublicKey, verify as edVerify } from "node:crypto";
+import { createHash, createPublicKey, verify as edVerify } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
+  BPS_DENOMINATOR,
   CANONICAL_IX_DATA_LEN,
+  DISCRIMINATOR,
+  MAX_DISTRIBUTION_RECIPIENTS,
   MESSAGE_OFFSET,
   PUBKEY_OFFSET,
   SIGNATURE_OFFSET,
   VOUCHER_PAYLOAD_SIZE,
   buildEd25519PrecompileData,
   buildVoucherPayload,
+  encodeDistributeData,
+  encodeDistributionPreimage,
   signVoucher,
 } from "../tools/lib/protocol.mjs";
 
@@ -178,5 +183,72 @@ describe("voucher signing", () => {
     await expect(signVoucher(new Uint8Array(31), new Uint8Array(50))).rejects.toThrow(
       /Ed25519 seed must be 32 bytes/,
     );
+  });
+});
+
+describe("distribution preimage", () => {
+  const encoderReturning = (byte) => ({ encode: () => new Uint8Array(32).fill(byte) });
+
+  it("encodes an empty plan as the bare 4-byte count prefix", () => {
+    const preimage = encodeDistributionPreimage(encoderReturning(1), []);
+    expect(preimage.length).toBe(4);
+    expect([...preimage]).toEqual([0, 0, 0, 0]);
+  });
+
+  it("hashes an empty plan to the digest the live channel committed at open", () => {
+    // This value is not invented: it is what the channel on devnet actually
+    // stores in `distribution_hash`, which was committed when the channel was
+    // opened. If our reading of the preimage layout were wrong, these two
+    // would not agree — and `distribute` would fail on chain.
+    const preimage = encodeDistributionPreimage(encoderReturning(1), []);
+    expect(createHash("sha256").update(Buffer.from(preimage)).digest("hex")).toBe(
+      "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
+    );
+  });
+
+  it("lays out entries as recipient(32) || bps(u16 LE), 34 bytes each", () => {
+    const preimage = encodeDistributionPreimage(encoderReturning(9), [{ recipient: "r", bps: 2500 }]);
+    expect(preimage.length).toBe(4 + 34);
+    expect(new DataView(preimage.buffer).getUint32(0, true)).toBe(1);
+    expect([...preimage.subarray(4, 36)]).toEqual(new Array(32).fill(9));
+    expect(new DataView(preimage.buffer).getUint16(36, true)).toBe(2500);
+  });
+
+  it("rejects plans the program would reject, naming the error code", () => {
+    const encoder = encoderReturning(1);
+    // Unlike `encoderReturning`, this one derives distinct bytes per recipient,
+    // so the duplicate check does not fire before the check under test.
+    const distinct = {
+      encode: (value) => {
+        const bytes = new Uint8Array(32);
+        bytes[0] = (String(value).charCodeAt(0) % 251) + 1;
+        return bytes;
+      },
+    };
+
+    expect(() => encodeDistributionPreimage(encoder, [{ recipient: "a", bps: 0 }])).toThrow(/error 261/);
+    expect(() =>
+      encodeDistributionPreimage(distinct, [{ recipient: "a", bps: 9000 }, { recipient: "b", bps: 2000 }]),
+    ).toThrow(/over the 10000 maximum/);
+    expect(() =>
+      encodeDistributionPreimage(distinct, [{ recipient: "a", bps: 100 }, { recipient: "a", bps: 100 }]),
+    ).toThrow(/duplicate recipient/);
+    expect(() =>
+      encodeDistributionPreimage(
+        encoder,
+        Array.from({ length: MAX_DISTRIBUTION_RECIPIENTS + 1 }, () => ({ recipient: "a", bps: 1 })),
+      ),
+    ).toThrow(/at most 32 recipients/);
+  });
+
+  it("prefixes the distribute instruction data with its discriminator", () => {
+    const data = encodeDistributeData(encoderReturning(1), []);
+    expect(data[0]).toBe(DISCRIMINATOR.distribute);
+    expect(data[0]).toBe(7);
+    expect([...data.subarray(1)]).toEqual([0, 0, 0, 0]);
+  });
+
+  it("pins the basis-point denominator", () => {
+    expect(BPS_DENOMINATOR).toBe(10_000);
   });
 });

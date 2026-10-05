@@ -229,6 +229,102 @@ export function buildEd25519PrecompileData(publicKey, signature, message) {
 }
 
 // ---------------------------------------------------------------------------
+// Distribution plan
+// ---------------------------------------------------------------------------
+
+export const BPS_DENOMINATOR = 10_000;
+export const MAX_DISTRIBUTION_RECIPIENTS = 32;
+
+/**
+ * The treasury owner the live devnet program almost certainly uses.
+ *
+ * `constants.rs` defines this as `TREASURY_OWNER_SENTINEL` — the bytes
+ * `0xBE,0xEF` repeated 16 times. The `devnet` configuration block assigns
+ * exactly this sentinel, and a build-time assert then *rejects* it for any
+ * devnet build. So the published source cannot be compiled for devnet at all,
+ * which means the deployed program was built without the `devnet` feature and
+ * fell through to the localnet/default block — which sets the same sentinel.
+ *
+ * The consequence: nobody holds this key, so anything that lands in its token
+ * account is permanently unspendable. It is only rounding dust, but it must
+ * not be presented as recoverable. Overridable so that a corrected deployment
+ * needs no code change.
+ */
+export const TREASURY_OWNER_SENTINEL_HEX =
+  "beefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeef";
+
+/**
+ * `DistributionPreimage` wire layout, which is NOT the same as the `open`
+ * argument encoding — `open` frames it as `openArgs.recipients`, this is the
+ * preimage that gets hashed.
+ *
+ *   count (u32 LE) || [ recipient (32) || shareBps (u16 LE) ] × count
+ *
+ * The SHA-256 of these bytes must equal the channel's `distribution_hash`,
+ * which was committed at `open`. For an empty plan the preimage is just four
+ * zero bytes, and the digest is
+ * `df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119` — which
+ * is exactly what our open channel stored, confirming this layout.
+ */
+export function encodeDistributionPreimage(addressEncoder, entries) {
+  if (entries.length > MAX_DISTRIBUTION_RECIPIENTS) {
+    throw new Error(
+      `at most ${MAX_DISTRIBUTION_RECIPIENTS} recipients are allowed ` +
+        `-> error 264 (invalidRecipientCount)`,
+    );
+  }
+
+  const buffer = new Uint8Array(4 + entries.length * 34);
+  const view = new DataView(buffer.buffer);
+  view.setUint32(0, entries.length, true);
+
+  let offset = 4;
+  let bpsSum = 0;
+  const seen = new Set();
+
+  for (const entry of entries) {
+    if (entry.bps === 0) {
+      throw new Error("a recipient share of zero basis points is rejected -> error 261");
+    }
+    bpsSum += entry.bps;
+    buffer.set(addressEncoder.encode(entry.recipient), offset);
+    offset += 32;
+    view.setUint16(offset, entry.bps, true);
+    offset += 2;
+
+    const key = String(entry.recipient);
+    if (seen.has(key)) throw new Error(`duplicate recipient ${key} -> error 262`);
+    seen.add(key);
+  }
+
+  if (bpsSum > BPS_DENOMINATOR) {
+    throw new Error(
+      `recipient shares total ${bpsSum} bps, over the ${BPS_DENOMINATOR} maximum -> error 261`,
+    );
+  }
+
+  return buffer;
+}
+
+/**
+ * Instruction data for `settleAndSeal`: the discriminator plus a single
+ * option-tag byte. `1` applies the voucher carried by the preceding Ed25519
+ * precompile; `0` seals whatever watermark is already recorded.
+ */
+export function encodeSettleAndSealData(hasVoucher) {
+  return new Uint8Array([DISCRIMINATOR.settleAndSeal, hasVoucher ? 1 : 0]);
+}
+
+/** Instruction data for `distribute`: the discriminator plus the plan reveal. */
+export function encodeDistributeData(addressEncoder, entries) {
+  const preimage = encodeDistributionPreimage(addressEncoder, entries);
+  const data = new Uint8Array(1 + preimage.length);
+  data[0] = DISCRIMINATOR.distribute;
+  data.set(preimage, 1);
+  return data;
+}
+
+// ---------------------------------------------------------------------------
 // Secret handling
 //
 // Secrets are read from the environment and never logged. Only public
@@ -237,6 +333,21 @@ export function buildEd25519PrecompileData(publicKey, signature, message) {
 
 const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const ALPHABET_INDEX = new Map([...ALPHABET].map((character, index) => [character, index]));
+
+export function base58Encode(bytes) {
+  let value = 0n;
+  for (const byte of bytes) value = value * 256n + BigInt(byte);
+  let text = "";
+  while (value > 0n) {
+    text = ALPHABET[Number(value % 58n)] + text;
+    value /= 58n;
+  }
+  for (const byte of bytes) {
+    if (byte !== 0) break;
+    text = "1" + text;
+  }
+  return text;
+}
 
 export function base58Decode(text) {
   let value = 0n;

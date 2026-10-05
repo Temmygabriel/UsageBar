@@ -22,6 +22,7 @@ on:
           - test-token
           - open-channel
           - settle
+          - close
       salt:
         description: "Channel salt (open-channel, settle). Change it to open another channel."
         type: string
@@ -37,6 +38,16 @@ on:
         type: string
         required: false
         default: "12400000,18900000"
+      final_cumulative:
+        description: "close only: the final cumulative amount. Must strictly exceed the channel's current watermark."
+        type: string
+        required: false
+        default: "21500000"
+      treasury_owner:
+        description: "close only: leave blank to use the 0xBEEF placeholder the deployed program carries."
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -90,12 +101,15 @@ jobs:
             test-token)   node tools/devnet-bootstrap.mjs ;;
             open-channel) node tools/devnet-open-channel.mjs ;;
             settle)       node tools/devnet-settle.mjs ;;
+            close)        node tools/devnet-close.mjs ;;
             *) echo "::error::Unknown script '${{ inputs.script }}'"; exit 1 ;;
           esac
         env:
           SALT: ${{ inputs.salt }}
           GRACE_PERIOD: ${{ inputs.grace_period }}
           CUMULATIVE: ${{ inputs.cumulative }}
+          FINAL_CUMULATIVE: ${{ inputs.final_cumulative }}
+          TREASURY_OWNER: ${{ inputs.treasury_owner }}
           DEVNET_PAYER_KEYPAIR: ${{ secrets.DEVNET_PAYER_KEYPAIR }}
           DEVNET_TEST_MINT_KEYPAIR: ${{ secrets.DEVNET_TEST_MINT_KEYPAIR }}
           DEVNET_OPERATOR_KEYPAIR: ${{ secrets.DEVNET_OPERATOR_KEYPAIR }}

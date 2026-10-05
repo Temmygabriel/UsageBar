@@ -21,8 +21,9 @@ on:
         options:
           - test-token
           - open-channel
+          - settle
       salt:
-        description: "Channel salt (open-channel only). Change it to open another channel."
+        description: "Channel salt (open-channel, settle). Change it to open another channel."
         type: string
         required: false
         default: "1"
@@ -31,6 +32,11 @@ on:
         type: string
         required: false
         default: "60"
+      cumulative:
+        description: "settle only: cumulative amounts in atomic units, comma-separated. Each must strictly exceed the last and stay within the deposit."
+        type: string
+        required: false
+        default: "12400000,18900000"
 
 permissions:
   contents: read
@@ -83,11 +89,13 @@ jobs:
           case "${{ inputs.script }}" in
             test-token)   node tools/devnet-bootstrap.mjs ;;
             open-channel) node tools/devnet-open-channel.mjs ;;
+            settle)       node tools/devnet-settle.mjs ;;
             *) echo "::error::Unknown script '${{ inputs.script }}'"; exit 1 ;;
           esac
         env:
           SALT: ${{ inputs.salt }}
           GRACE_PERIOD: ${{ inputs.grace_period }}
+          CUMULATIVE: ${{ inputs.cumulative }}
           DEVNET_PAYER_KEYPAIR: ${{ secrets.DEVNET_PAYER_KEYPAIR }}
           DEVNET_TEST_MINT_KEYPAIR: ${{ secrets.DEVNET_TEST_MINT_KEYPAIR }}
           DEVNET_OPERATOR_KEYPAIR: ${{ secrets.DEVNET_OPERATOR_KEYPAIR }}

@@ -43,6 +43,15 @@ Classic SPL Token (`Tokenkeg...`), chosen over Token-2022 deliberately: the
 program restricts Token-2022 to an extension allow-list, and a plain mint
 cannot trip it.
 
+### Channel #1 state — moves as we settle
+
+`salt 1`, `openSlot 507695832`, `bump 254`, deposit 50 TEST, grace period 60s.
+
+As of 2026-10-05: **status Open, settled 18.9 TEST, payoutWatermark 0**, so
+31.1 TEST remains escrowed. This is a *live, mutable* value — re-read it from
+chain rather than trusting this line. `settled` sits at **byte offset 20** of
+the 256-byte account (u64 LE), which is the quickest way to check by hand.
+
 ### Three distinct keys, easily confused
 
 | Key | Who holds it | Role |
@@ -149,6 +158,56 @@ Detail in `docs/CLAIM_STATUS.md`.
   `[1] + salt(u64) + deposit(u64) + gracePeriod(u32) + openSlot(u64) + count(u32) + entries{recipient:pubkey, bps:u16}`.
 - **`recipients` may be empty** (0–32 allowed, error 260). If present, each
   `bps` must be non-zero and the total at most 10,000 (error 261).
+
+### Settlement mechanics — the part that bites
+
+- **`settle`'s instruction data is one byte**: its discriminator (`2`). Its only
+  accounts are `channel` (writable) and the Instructions sysvar. The voucher is
+  **not** an argument.
+- **The voucher rides in the Ed25519 precompile at instruction `current - 1`.**
+  The program loads that instruction from the sysvar and parses it. The two must
+  be **adjacent and in that order**; anything in between gives error 230,
+  `missingEd25519Verification`.
+- **There is no message-equality check.** Error 236 `voucherMessageMismatch` is
+  marked *Reserved*. The signed message *is* the voucher — there is no second
+  copy to reconcile.
+- **The precompile payload is exactly 162 bytes**, and the field order is
+  counter-intuitive:
+
+  ```
+  0    num_signatures u8  = 1        16..48   public key   (32)
+  1    padding        u8  = 0        48..112  signature    (64)
+  2..16  seven u16 LE offsets        112..162 message      (50)
+        (3 offsets + three 0xFFFF instruction indices)
+  ```
+
+  `signature_offset = 48`, `public_key_offset = 16`, `message_data_offset = 112`,
+  `message_data_size = 50`, and all three `*_instruction_index` fields `0xFFFF`.
+  Note **pubkey comes before signature** — the reverse of the usual assumption.
+  The precompile itself would accept either arrangement because it reads via the
+  offsets, but the program's parser pins these three values exactly and rejects
+  everything else with error 231.
+- **Discriminators are not an enum in declaration order.** `open` 1, `settle` 2,
+  `topUp` 3, `settleAndSeal` 4, `requestClose` 5, `seal` 6, `distribute` 7,
+  `withdrawPayer` 8, `reclaim` 9, but **`emitEvent` is 228**. Look them up in the
+  IDL; never infer.
+- **`settleAndSeal` requires the payee's signature** and takes a one-byte
+  `hasVoucher` option tag. Non-zero applies the preceding precompile voucher
+  first, under the same rules as `settle`.
+- **Voucher guards, and the error each produces:** magic (238), channel id (232),
+  expiry (233), `cumulative > settled` strictly (234), `cumulative <= deposit`
+  (235), signer == `authorized_signer` (237).
+- `Ed25519SigVerify111111111111111111111111111` is the precompile;
+  `Sysvar1nstructions1111111111111111111111111` is the Instructions sysvar.
+
+### Where the encoders live
+
+`tools/lib/protocol.mjs` is the single source for the voucher payload, the
+precompile payload, the channel decoder and the discriminators, with the byte
+layouts documented in comments. `tools/devnet-open-channel.mjs` predates it and
+still carries its own copies of the secret-decoding and channel-decoding code —
+a known duplication, left alone deliberately because that script is the proven
+Gate 1 reproduction path. Migrate it only with a way to re-verify.
 
 ---
 

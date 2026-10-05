@@ -14,12 +14,13 @@
 
 ## Where we are right now
 
-**The protocol gate is PASSED.** A real payment channel is open on devnet and
-has been read back from chain. This was the single thing everything else waited
-behind.
+**Two gates are passed.** A real payment channel is open on devnet and read back
+from chain, and its settled watermark has been advanced twice by cumulative
+vouchers that the operator signed off-chain. Those were the two things
+everything else waited behind.
 
-Not yet started: the application itself. There is no UI, no usage meter, no
-voucher signing, and no settlement. Those come next.
+Not yet started: the application itself. There is no UI, no live usage meter,
+and no close-and-distribute. Those come next.
 
 ---
 
@@ -51,6 +52,52 @@ Verified two independent ways: by our CI job, and by a raw `getAccountInfo`
 RPC call from the local machine that does not use our own code at all.
 
 Reproduce with: **Actions → Devnet → Run workflow → `open-channel`**.
+
+---
+
+## The second gate: advance the watermark with a signed voucher — PASSED 2026-10-05
+
+Opening a channel moves money *in*. This moves the **meter** — which is the
+actual product. A usage tab is: authorize once, meter usage off-chain by signing
+cumulative vouchers, settle on chain at the end.
+
+| Step | Voucher amount | Transaction |
+|---|---|---|
+| 1 | 12.4 TEST | `3fBMYtCJKejFgKapjXzfQP7u51o1BeKGp3fBoZw6G4iK2uUoB9XpvBH57mPLKSR5idmasALHLKtfjPNgLoGJ5J3W` |
+| 2 | 18.9 TEST | `3wesVbuGwEA9ETkAUUG1L1We6GSCVhb2ojimHRv7Bh468ryDJrTtLtHVQnRmYc62E7KJyKSwnSwsJCoKnyNn4uNG` |
+
+`settled` on the channel went `0` → `12400000` → `18900000` atomic units, each
+value read back from chain after its own transaction. 31.1 TEST of the 50 TEST
+deposit remains, and that remainder is what a close would return to the payer.
+
+**The voucher is not passed to `settle`.** `settle`'s entire instruction data is
+a single discriminator byte, and its only accounts are the channel and the
+Instructions sysvar. The program loads instruction `current - 1` from that
+sysvar and parses it as an Ed25519 precompile payload — whose signed message
+*is* the 50-byte voucher. So the two instructions must be adjacent and in that
+order. Get it wrong and the result is error 230,
+`missingEd25519Verification`. **This requirement appears nowhere in the build
+spec**, and it is the most likely way to ship something that fails during a
+demo.
+
+Two further details are easy to get wrong, and both are now pinned in code and
+tested:
+
+- The precompile payload is exactly **162 bytes**, and the field order is
+  counter-intuitive: **pubkey at offset 16, signature at 48, message at 112**.
+  The precompile itself reads via the offsets and would accept either
+  arrangement, but the program's parser pins those three values exactly and
+  rejects everything else with error 231.
+- The discriminator for `emitEvent` is **228**, so the instruction
+  discriminators are not an enum in declaration order. They are looked up from
+  the IDL, never inferred.
+
+Verified independently, exactly as with the first gate: a raw `getAccountInfo`
+call from the local machine, with `settled` read by hand at byte offset 20,
+returned `18900000`. The `channel_id` bytes inside the signed payload decode to
+exactly the channel address.
+
+Reproduce with: **Actions → Devnet → Run workflow → `settle`**.
 
 ---
 
@@ -86,6 +133,15 @@ This corrected the build spec in several places and is recorded in
 
 One real channel opened on devnet and read back. Three attempts were needed;
 the failures and their causes are logged below.
+
+### 2026-10-05 — The second gate passed
+
+The watermark advanced through two cumulative vouchers signed by the operator.
+Before spending a single transaction, the voucher encoding was checked locally
+against a re-implementation of the program's own parser guards — the encoder,
+the 162-byte precompile layout, and the signing contract. That check is now a
+committed test (`tests/voucher-encoding.test.js`, 10 cases) and runs on every
+push, so drift fails in CI rather than mid-demo.
 
 ---
 
@@ -127,13 +183,14 @@ Seven days remain, and the application has not been started.
 
 ## Next steps
 
-1. Produce a cumulative voucher the program accepts, and settle with it. This
-   requires the Ed25519 precompile in the same transaction — a requirement
-   absent from the build spec.
-2. Run `settleAndSeal`, then `distribute`, and find out what the treasury
-   situation really is.
-3. Confirm the unused remainder is actually recoverable by the payer.
-4. Only then: build the interface.
+1. Run `settleAndSeal` (discriminator 4). This is a different instruction from
+   the `settle` just proven, and it additionally requires the **payee's**
+   signature.
+2. Run `distribute`, and find out what the treasury situation really is.
+3. Confirm the unused remainder actually reaches the payer. `distribute` has a
+   `payerTokenAccount` among its writable accounts and `withdrawPayer`
+   (discriminator 8) is the pull path, but neither has been executed.
+4. Build the interface.
 
 ## Deliberately not done yet
 
@@ -154,6 +211,12 @@ free RAM and `npm install` hangs on it. Everything runs in GitHub Actions.
 | Typecheck, test, build | Automatic on push to `main` |
 | Create the test token | Actions → **Devnet** → `test-token` |
 | Open a channel | Actions → **Devnet** → `open-channel` |
+| Settle with a voucher | Actions → **Devnet** → `settle` |
 
 The Devnet workflow is manual-trigger only, because it reads private keys from
 repository secrets.
+
+The voucher encoding is checked without a network or a key:
+`node --test` is not needed — the checks live in `tests/voucher-encoding.test.js`
+and run under `npm test`, which CI does on every push. They need no
+dependencies beyond `node:crypto`.

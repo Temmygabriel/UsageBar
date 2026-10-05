@@ -12,8 +12,9 @@ INFERRED   — follows from proven facts, but not directly demonstrated
 UNVERIFIED — not tested. This is the default. It is not a soft "probably fine".
 ```
 
-Last updated: **2026-10-05** (the protocol gate passed — a real channel is open
-on devnet and was read back from chain, verified independently).
+Last updated: **2026-10-05** (two gates passed — a real channel is open on
+devnet and its settled watermark has been advanced by real cumulative vouchers,
+both verified independently from raw chain state).
 
 ---
 
@@ -84,20 +85,36 @@ Verified 2026-10-05 by chain readback. Detail in
 | GitHub Actions can sign and send a devnet transaction using a repository secret | PROVEN |
 | No private key is committed; `local-wallet/` is gitignored and verified invisible to git | PROVEN |
 
-## UsageBar — the gate is proven
+## UsageBar — two gates are proven
 
-Opening a channel now works. Everything below it does not yet, and stays listed
-so the gap remains visible.
+Money can go in, and the meter can move. Everything below those does not yet,
+and stays listed so the gap remains visible.
+
+### Gate 1 — open a channel and read it back
 
 | Claim | Status |
 |---|---|
 | UsageBar can open a channel on Devnet | **PROVEN** — channel `7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo`, opened at slot `507695832` by transaction `2Uoz4SE93ct5v3RrXQnzFhy8Dn4bwi8FBcf817Vm3SjNm1Umi2q9jzxLF95SdEsCC8r2KsKHDYKSo8JaNuDLgoh` |
-| UsageBar can read a channel back from chain | **PROVEN** — 256 bytes decoded, matching `Channel::LEN`; discriminator `1`, version `1`, bump `254`, status `0` (Open), all party fields correct, `settled` and `payoutWatermark` zero |
+| UsageBar can read a channel back from chain | **PROVEN** — 256 bytes decoded, matching `Channel::LEN`; discriminator `1`, version `1`, bump `254`, status `0` (Open), all party fields correct |
 | Opening a channel actually moves the deposit | **PROVEN** — payer ATA `1000000` → `999950` TEST; channel ATA `0` → `50` TEST. A successful transaction is not proof that anything worked; tokens changing accounts is. |
 | The readback is independent of our own tooling | **PROVEN** — re-verified by a raw `getAccountInfo` RPC call from the local machine, which does not execute any of our code |
 | The channel PDA derivation matches the program's | **PROVEN** — the program re-derives the address from the seeds and rejects a mismatch (error 2000); it accepted ours |
-| UsageBar can produce a cumulative voucher that the program accepts | UNVERIFIED |
-| UsageBar can call `settle_and_seal` on Devnet | UNVERIFIED |
+
+### Gate 2 — advance the settled watermark with a signed voucher
+
+| Claim | Status |
+|---|---|
+| UsageBar can produce a cumulative voucher the program accepts | **PROVEN** — the operator signed 50-byte vouchers for `12400000` then `18900000` atomic units, and the program accepted both |
+| The watermark advances monotonically across vouchers | **PROVEN** — `settled` went `0` → `12400000` (tx `3fBMYtCJKejFgKapjXzfQP7u51o1BeKGp3fBoZw6G4iK2uUoB9XpvBH57mPLKSR5idmasALHLKtfjPNgLoGJ5J3W`) → `18900000` (tx `3wesVbuGwEA9ETkAUUG1L1We6GSCVhb2ojimHRv7Bh468ryDJrTtLtHVQnRmYc62E7KJyKSwnSwsJCoKnyNn4uNG`), each read back from chain after its own transaction |
+| The Ed25519 precompile adjacency requirement is real, and satisfied | **PROVEN** — `settle` carries no voucher in its data; the program loads instruction `current-1` from the Instructions sysvar. Our transactions place the precompile immediately before `settle`, and were accepted. |
+| The voucher is bound to this channel and to no other | **PROVEN** — the `channel_id` bytes inside the signed payload decode to exactly `7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo`; the program rejects a mismatch with error 232 |
+| The Gate 2 readback is independent of our own tooling | **PROVEN** — raw `getAccountInfo` from the local machine, with `settled` read by hand at byte offset 20, returned `18900000` |
+
+### Still not proven
+
+| Claim | Status |
+|---|---|
+| UsageBar can call `settle_and_seal` on Devnet | UNVERIFIED — `settle` is proven; `settleAndSeal` is a different instruction (discriminator 4) and additionally requires the **payee's** signature |
 | UsageBar can call `distribute` on Devnet | UNVERIFIED |
 | The unused remainder is actually recoverable by the payer | UNVERIFIED |
 | The devnet deployment accepts `distribute` despite the placeholder treasury owner | UNVERIFIED — the source cannot compile with `--features devnet` at all (build-time assert rejects the `0xBEEF` sentinel), so the live program was built differently and very likely carries that placeholder. Untested. Detail in [`ASSET_PROVENANCE.md`](ASSET_PROVENANCE.md). |

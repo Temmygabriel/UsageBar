@@ -35,7 +35,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: "npm"
+          # `cache: npm` is deliberately omitted until package-lock.json is
+          # committed -- actions/setup-node fails without a lockfile.
 
       # NOTE: `npm install` rather than `npm ci`, because package-lock.json is
       # not committed yet. Generating it locally is impractical on the

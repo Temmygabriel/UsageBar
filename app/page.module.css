@@ -1,0 +1,254 @@
+/*
+ * The landing composition.
+ *
+ * Build spec Section 0C pins the first-viewport desktop layout as
+ * proposition-on-the-left, Usage-Tab-on-the-right, under a restrained header.
+ * The hierarchy is what matters and it may not change for responsive reasons,
+ * so below the breakpoint this collapses to the single column Section 0C
+ * specifies: proposition, tab, amounts, meter, state, action, proof.
+ */
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ------------------------------------------------------------------ head - */
+
+.header {
+  border-bottom: var(--hairline) solid var(--rule);
+}
+
+.headerInner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.wordmark {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Section 0C: "a small amount of navigation" and "do not create a 10-item
+   navigation bar". Two links, hidden on narrow screens where they would wrap
+   into the wordmark and stop being navigation at all. */
+.nav {
+  display: none;
+  gap: var(--space-5);
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+}
+
+.nav a {
+  text-decoration: none;
+}
+
+.nav a:hover {
+  color: var(--ink);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The network indicator. A judge needs to know this is not real money. */
+.network {
+  display: none;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+@media (min-width: 720px) {
+  .nav,
+  .network {
+    display: flex;
+  }
+}
+
+/* ------------------------------------------------------------------ main - */
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-5) var(--space-9);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .main {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 440px);
+    gap: var(--space-9);
+    padding-top: var(--space-9);
+  }
+}
+
+/* -------------------------------------------------------- proposition ---- */
+
+.proposition {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 34ch;
+}
+
+.proposition .display {
+  margin-top: var(--space-1);
+}
+
+.steps {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The separator is drawn rather than typed, so it is not announced to a
+   screen reader as content. */
+.steps li + li::before {
+  content: "";
+  width: 18px;
+  height: var(--hairline);
+  background: var(--rule-strong);
+  display: inline-block;
+}
+
+.stepIndex {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  color: var(--ink-faint);
+  font-size: 0.6875rem;
+}
+
+/* ----------------------------------------------------------------- live -- */
+
+/* The tab column. `position: sticky` keeps the product object in view on a
+   tall desktop viewport while the page scrolls, which is what makes it read
+   as the hero rather than as one section among several. */
+.tabColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+@media (min-width: 960px) {
+  .tabColumn {
+    position: sticky;
+    top: var(--space-8);
+  }
+}
+
+/* The honest-state banner. Amber, hairline, never a success colour. */
+.banner {
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-radius: var(--radius);
+  background: var(--warn-quiet);
+  color: var(--warn);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------- footer - */
+
+.footer {
+  border-top: var(--hairline) solid var(--rule);
+  margin-top: auto;
+}
+
+.footerInner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.footerTitle {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* The evidence list. Monospace, because every entry is a real identifier
+   rather than prose. */
+.evidence {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 720px) {
+  .evidence {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3) var(--space-6);
+  }
+}
+
+.evidenceItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8125rem;
+}
+
+.evidenceClaim {
+  color: var(--ink);
+}
+
+.evidenceProof {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  color: var(--ink-faint);
+  text-decoration: none;
+  border-bottom: var(--hairline) solid transparent;
+  word-break: break-all;
+}
+
+a.evidenceProof:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.footerNote {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  max-width: 78ch;
+  line-height: 1.6;
+}
+
+.footerNote a {
+  color: var(--ink-muted);
+}

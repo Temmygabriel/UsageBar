@@ -89,6 +89,60 @@ export function parseAmount(value: string, decimals: number): bigint {
 }
 
 /**
+ * Render an atomic amount for the interface.
+ *
+ * The display convention is two decimal places, matching the locked visual
+ * reference in build spec Section 0C. But the verified test mint has SIX
+ * decimals, so two places can be a lie: a remainder of `37.600001` would read
+ * as `37.60` and the tab would appear not to add up.
+ *
+ * The rule this function enforces: never hide a digit that is actually there.
+ * If the amount is exact at two places it is shown at two; if it is not, the
+ * full value is shown instead. Trailing zeros beyond the second place are
+ * dropped, so `12.400000` still reads `12.40`.
+ *
+ * This is a display concern only. Settlement arithmetic stays in `bigint` and
+ * never goes through this function.
+ */
+export function formatForDisplay(atomic: bigint, decimals: number): string {
+  const exact = formatAtomic(atomic, decimals);
+
+  // Whole numbers: still show two places, so a column of amounts lines up.
+  const dot = exact.indexOf(".");
+  if (dot === -1) return `${exact}.00`;
+
+  const fraction = exact.slice(dot + 1);
+  const beyondTwo = fraction.slice(2);
+
+  // Exact at two places (or fewer): the common case.
+  if (beyondTwo.length === 0 || /^0*$/.test(beyondTwo)) {
+    return exact.slice(0, dot + 3).padEnd(dot + 3, "0");
+  }
+
+  // More precision than two places and it is not zero. Show all of it rather
+  // than round, so the displayed numbers still reconcile.
+  return `${exact.slice(0, dot + 3)}${beyondTwo.replace(/0+$/, "")}`;
+}
+
+/** Group the whole part in threes: `1234567.89` -> `1,234,567.89`. */
+export function groupThousands(value: string): string {
+  const negative = value.startsWith("-");
+  const unsigned = negative ? value.slice(1) : value;
+  const [whole, fraction] = unsigned.split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const joined = fraction === undefined ? grouped : `${grouped}.${fraction}`;
+  return negative ? `-${joined}` : joined;
+}
+
+/**
+ * The full display string for an amount: exact, never rounded, then grouped.
+ * `50000000n` at 6 decimals -> `50.00`.
+ */
+export function formatAmount(atomic: bigint, decimals: number): string {
+  return groupThousands(formatForDisplay(atomic, decimals));
+}
+
+/**
  * The required reconciliation (build spec Section 14):
  *
  *   authorized === settled + unused

@@ -77,6 +77,47 @@ const SYSTEM_PROGRAM = address("11111111111111111111111111111111");
 const INSTRUCTIONS_SYSVAR_ADDRESS = address(INSTRUCTIONS_SYSVAR);
 
 /**
+ * The account metas of an instruction that carries a `signer`.
+ *
+ * `Instruction` alone types its accounts as `AccountMeta[]`, which has no
+ * `signer` field — so a literal that supplies one is rejected as an excess
+ * property. `InstructionWithSigners` is the kit's own counterpart type, and the
+ * intersection of the two is the shape its documentation uses. It matters here
+ * because the payee's signature on the cooperative close is collected from
+ * exactly this field.
+ */
+type SignerAccounts = NonNullable<InstructionWithSigners["accounts"]>;
+
+/**
+ * Re-brand an instruction built by the JavaScript tooling.
+ *
+ * `tools/lib/protocol.mjs` is plain JavaScript shared with the devnet scripts,
+ * so it cannot produce kit's `Address` — a *branded* string that only
+ * `address()` mints — and its instruction objects arrive with a plain `string`
+ * in `programAddress`. The values are correct; the brand is not there to be had.
+ *
+ * `address()` re-validates that the string really is a 32-byte base58 address
+ * and then returns it unchanged, so this is free at runtime and turns an
+ * unchecked string into a checked one.
+ *
+ * The `accounts` array is carried through **by reference on purpose**: the
+ * tooling puts signer metas in it, and `signTransactionMessageWithSigners`
+ * finds the signers by scanning those accounts at runtime. Copying the array
+ * would still work; rebuilding it would not.
+ */
+function instructionFrom(built: {
+  readonly programAddress: string;
+  readonly accounts?: readonly unknown[];
+  readonly data?: Uint8Array;
+}): Instruction {
+  return {
+    programAddress: address(built.programAddress),
+    accounts: built.accounts as Instruction["accounts"],
+    data: built.data,
+  };
+}
+
+/**
  * A decoded channel account, matching `decodeChannel` in `tools/lib/protocol.mjs`.
  *
  * Spelled out rather than written as `ReturnType<typeof decodeChannel>`. The
@@ -276,13 +317,15 @@ export async function fundWallet(
   // SOL first, in its own transaction: it is what pays for the token account's
   // rent, so it must land before anything that spends it.
   instructions.push(
-    buildSystemTransferInstruction({
-      from: payer.address,
-      fromSigner: payer,
-      to: address(recipient),
-      lamports: config.solPerWallet,
-      AccountRole,
-    }),
+    instructionFrom(
+      buildSystemTransferInstruction({
+        from: payer.address,
+        fromSigner: payer,
+        to: address(recipient),
+        lamports: config.solPerWallet,
+        AccountRole,
+      }),
+    ),
   );
 
   const { value: solBlockhash } = await rpc.getLatestBlockhash().send();
@@ -297,25 +340,29 @@ export async function fundWallet(
   await sendAndConfirm(rpc, getBase64EncodedWireTransaction(solSigned));
 
   // Then the token account and the TEST, together.
-  const tokenInstructions = [
-    buildCreateAtaIdempotentInstruction({
-      payer: payer.address,
-      payerSigner: payer,
-      ata: recipientTokenAccount,
-      owner: address(recipient),
-      mint,
-      tokenProgram: TOKEN_PROGRAM,
-      AccountRole,
-    }),
-    buildTokenTransferInstruction({
-      source: payerTokenAccount,
-      destination: recipientTokenAccount,
-      authority: payer.address,
-      authoritySigner: payer,
-      amount: config.tokensPerWallet,
-      tokenProgram: TOKEN_PROGRAM,
-      AccountRole,
-    }),
+  const tokenInstructions: Instruction[] = [
+    instructionFrom(
+      buildCreateAtaIdempotentInstruction({
+        payer: payer.address,
+        payerSigner: payer,
+        ata: recipientTokenAccount,
+        owner: address(recipient),
+        mint,
+        tokenProgram: TOKEN_PROGRAM,
+        AccountRole,
+      }),
+    ),
+    instructionFrom(
+      buildTokenTransferInstruction({
+        source: payerTokenAccount,
+        destination: recipientTokenAccount,
+        authority: payer.address,
+        authoritySigner: payer,
+        amount: config.tokensPerWallet,
+        tokenProgram: TOKEN_PROGRAM,
+        AccountRole,
+      }),
+    ),
   ];
 
   const { value: tokenBlockhash } = await rpc.getLatestBlockhash().send();
@@ -753,15 +800,22 @@ export async function closeChannel(
     });
   }
 
+  // The accounts are built into a typed variable rather than written inline.
+  // Writing them inline makes them a *fresh* object literal, and a fresh literal
+  // supplying `signer` is rejected as an excess property against the account
+  // meta's declared shape; assigning the same values to a typed variable first
+  // is what expresses "this meta carries a signer" without a cast.
+  const sealAccounts: SignerAccounts = [
+    // The payee is the authority: this is the cooperative close. `signer` is
+    // what lets the kit sign with it.
+    { address: payee.address, role: AccountRole.READONLY_SIGNER, signer: payee },
+    { address: channelId, role: AccountRole.WRITABLE },
+    { address: INSTRUCTIONS_SYSVAR_ADDRESS, role: AccountRole.READONLY },
+  ];
+
   sealInstructions.push({
     programAddress: PROGRAM,
-    accounts: [
-      // The payee is the authority: this is the cooperative close. `signer` is
-      // what lets the kit sign with it.
-      { address: payee.address, role: AccountRole.READONLY_SIGNER, signer: payee },
-      { address: channelId, role: AccountRole.WRITABLE },
-      { address: INSTRUCTIONS_SYSVAR_ADDRESS, role: AccountRole.READONLY },
-    ],
+    accounts: sealAccounts,
     // The option byte tracks whether a precompile precedes this instruction.
     data: encodeSettleAndSealData(finalCumulative > 0n),
   });
@@ -867,30 +921,34 @@ export async function closeChannel(
     const info = await rpc.getAccountInfo(payeeTokenAccount, { encoding: "base64" }).send();
     if (info.value === null) {
       createInstructions.push(
-        buildCreateAtaIdempotentInstruction({
-          payer: payer.address,
-          payerSigner: payer,
-          ata: payeeTokenAccount,
-          owner: address(channel.payee),
-          mint,
-          tokenProgram: TOKEN_PROGRAM,
-          AccountRole,
-        }),
+        instructionFrom(
+          buildCreateAtaIdempotentInstruction({
+            payer: payer.address,
+            payerSigner: payer,
+            ata: payeeTokenAccount,
+            owner: address(channel.payee),
+            mint,
+            tokenProgram: TOKEN_PROGRAM,
+            AccountRole,
+          }),
+        ),
       );
     }
   }
   const treasuryInfo = await rpc.getAccountInfo(treasuryTokenAccount, { encoding: "base64" }).send();
   if (treasuryInfo.value === null) {
     createInstructions.push(
-      buildCreateAtaIdempotentInstruction({
-        payer: payer.address,
-        payerSigner: payer,
-        ata: treasuryTokenAccount,
-        owner: address(config.treasuryOwner),
-        mint,
-        tokenProgram: TOKEN_PROGRAM,
-        AccountRole,
-      }),
+      instructionFrom(
+        buildCreateAtaIdempotentInstruction({
+          payer: payer.address,
+          payerSigner: payer,
+          ata: treasuryTokenAccount,
+          owner: address(config.treasuryOwner),
+          mint,
+          tokenProgram: TOKEN_PROGRAM,
+          AccountRole,
+        }),
+      ),
     );
   }
 

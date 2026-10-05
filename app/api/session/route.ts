@@ -163,7 +163,7 @@ export async function POST(request: Request): Promise<Response> {
         // clamps it to the deposit. A caller who sends a huge number only bills
         // themselves more, and can never exceed what they authorized.
         const seconds = optionalPositiveNumber(body, "seconds", 3);
-        const result = await commitUsage(config, channel);
+        const result = await commitUsage(config, channel, seconds);
         return jsonOk({
           advanced: result.advanced,
           settled: result.settled,

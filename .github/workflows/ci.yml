@@ -35,16 +35,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          # `cache: npm` is deliberately omitted until package-lock.json is
-          # committed -- actions/setup-node fails without a lockfile.
+          cache: "npm"
 
-      # NOTE: `npm install` rather than `npm ci`, because package-lock.json is
-      # not committed yet. Generating it locally is impractical on the
-      # development machine (8 GB RAM, ~0.6 GB free). It must be generated here
-      # and committed before final submission so installs become reproducible.
-      # Tracking: Phase 0 follow-up.
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck
         run: npm run typecheck

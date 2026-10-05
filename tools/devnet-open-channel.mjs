@@ -33,6 +33,7 @@ import {
   address,
   appendTransactionMessageInstructions,
   createKeyPairFromBytes,
+  createSignerFromKeyPair,
   createSolanaRpc,
   createSolanaRpcSubscriptions,
   createTransactionMessage,
@@ -217,11 +218,14 @@ const STATUS_NAMES = ["Open", "Sealed", "Closing", "Distributed"];
 const rpc = createSolanaRpc(RPC_URL);
 const rpcSubscriptions = createSolanaRpcSubscriptions(WS_URL);
 
-const payerKeyPair = await createKeyPairFromBytes(decodeSecretKey("DEVNET_PAYER_KEYPAIR"));
-const payerAddress = addressDecoder.decode(
-  new Uint8Array(await crypto.subtle.exportKey("raw", payerKeyPair.publicKey)),
-);
-const payer = { address: payerAddress, keyPair: payerKeyPair };
+const payerSecretKey = decodeSecretKey("DEVNET_PAYER_KEYPAIR");
+// A Solana secret key is seed(32) || publicKey(32), so the address is simply
+// the trailing half of it. Reading it directly avoids depending on whether the
+// generated CryptoKey happens to be extractable.
+const payerAddress = addressDecoder.decode(payerSecretKey.subarray(32, 64));
+// A TransactionSigner, not a bare keypair: setTransactionMessageFeePayerSigner
+// needs something carrying signTransactions.
+const payer = await createSignerFromKeyPair(await createKeyPairFromBytes(payerSecretKey));
 
 console.log("");
 console.log(`  cluster        : ${RPC_URL}`);
@@ -300,8 +304,12 @@ const instructionData = encodeOpenArgs({
 const instruction = {
   programAddress: PAYMENT_CHANNELS_PROGRAM,
   accounts: [
-    { address: payer, role: AccountRole.WRITABLE_SIGNER }, // payer
-    { address: payer, role: AccountRole.WRITABLE_SIGNER }, // rentPayer (same key)
+    // Raw instruction accounts take plain addresses, not signer objects: the
+    // message codec stringifies anything else. Both signer slots are the payer
+    // address, which `setTransactionMessageFeePayerSigner` below already
+    // supplies a signature for, so there is exactly one required signature.
+    { address: payer.address, role: AccountRole.WRITABLE_SIGNER }, // payer
+    { address: payer.address, role: AccountRole.WRITABLE_SIGNER }, // rentPayer (same key)
     { address: PAYEE, role: AccountRole.READONLY },
     { address: TEST_MINT, role: AccountRole.READONLY },
     { address: OPERATOR, role: AccountRole.READONLY },

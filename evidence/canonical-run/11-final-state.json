@@ -1,0 +1,35 @@
+{
+  "run": "canonical-usagebar-devnet-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-06T23:46:12.749Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "the channel account and all four token accounts were re-read from chain after the payout",
+  "channel": "4LtkUAsruLTTi9xzwy6Zd67U8uz8d8sX72gyYsKjPz4S",
+  "transactionSignature": "5vbXmk8d4bMQUHpvXWzZ993N8CsEvvLXkRnK4cHVYUiKA59X7Po4ru5Jy1hn82D587ZDZTX8eLyfrwxS8AvePeQ5",
+  "explorer": "https://explorer.solana.com/address/4LtkUAsruLTTi9xzwy6Zd67U8uz8d8sX72gyYsKjPz4S?cluster=devnet",
+  "observed": {
+    "channelAccountClosed": false,
+    "channel": {
+      "status": 3,
+      "statusName": "Distributed",
+      "settled": "6250000",
+      "payoutWatermark": "0"
+    },
+    "finalBalances": {
+      "payer": "999922250000",
+      "channel": null,
+      "provider": "6250000",
+      "treasury": "0"
+    }
+  },
+  "expected": {
+    "escrowEmpty": true,
+    "providerPaid": "6250000",
+    "customerRefunded": "43750000"
+  }
+}

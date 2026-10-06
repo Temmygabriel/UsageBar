@@ -1,0 +1,30 @@
+{
+  "run": "canonical-usagebar-devnet-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-06T23:45:50.661Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "the Ed25519 voucher was signed off chain, submitted in a precompile immediately before `settle`, then the channel account was re-read and the watermark decoded from byte 20",
+  "channel": "4LtkUAsruLTTi9xzwy6Zd67U8uz8d8sX72gyYsKjPz4S",
+  "transactionSignature": "4YFDyWx7niNhPf9NPTaWBe6rG77a4W3s8a2iw6B4oTXgLzq9oy1mcPU55LAhBee5QJUDc3YUgsnyfiN6YgKKgXPT",
+  "explorer": "https://explorer.solana.com/tx/4YFDyWx7niNhPf9NPTaWBe6rG77a4W3s8a2iw6B4oTXgLzq9oy1mcPU55LAhBee5QJUDc3YUgsnyfiN6YgKKgXPT?cluster=devnet",
+  "observed": {
+    "watermarkBefore": "1250000",
+    "watermarkAfter": "2500000",
+    "voucherPayloadHex": "560131ab9c04c938a9838f2df95025daa7720947463904c8c4ebacd8ba40030ef71ba0252600000000000000000000000000",
+    "voucherSignedBy": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+    "voucherSignatureHex": "8a050f55a2869d2ddb4bdb462e2e0cb8b9c5bd2ce03a00ed58b3a3f0fcb5f7385fa1e1776a5230d8695d86ba45938bcc9e61728148062baa28ebde66af793d03",
+    "realElapsedMs": 5002,
+    "billedSeconds": 5
+  },
+  "expected": {
+    "watermarkBefore": "1250000",
+    "watermarkAfter": "2500000",
+    "billedAmount": "1250000",
+    "voucherSize": 50
+  }
+}

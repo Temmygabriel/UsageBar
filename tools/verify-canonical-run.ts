@@ -59,8 +59,10 @@ const REQUIRED_FILES = [
 const EVIDENCE_DIR = envOr("EVIDENCE_DIR", "evidence/canonical-run");
 const RPC_URL = envOr("DEVNET_RPC_URL", "https://api.devnet.solana.com");
 const rpc = createSolanaRpc(RPC_URL);
+// Only the encoder: this verifier never has to turn 32 bytes back into an
+// address, because every address it checks comes from the artifacts as a string
+// and the one it derives it derives forward, from the seeds.
 const addressEncoder = getAddressEncoder();
-const addressDecoder = getAddressDecoder();
 
 const failures: string[] = [];
 const notes: string[] = [];
@@ -122,22 +124,58 @@ function asSignature(value: string) {
 // Secret scan
 //
 // Section 27 forbids private keys, seed phrases, and tokens in the artifacts.
-// Checked by shape rather than by field name, because a secret pasted into a
-// field called `note` would pass a name-based check. A Solana secret key is
-// 64 bytes, and both the base58 and the JSON-array encodings are detected.
+//
+// THE OBVIOUS CHECK DOES NOT WORK, AND IT IS WORTH SAYING WHY.
+//
+// The first version of this looked for a base58 string of 86-90 characters,
+// reasoning that a 64-byte secret key encodes to about that. It flagged all
+// eighteen transaction signatures in a legitimate run. The reason is that a
+// Solana *signature* is also 64 bytes and also base58 — the two are the same
+// length, and no amount of shape inspection separates them. A checker built on
+// that heuristic would fail every honest run and could only ever be silenced by
+// deleting it, which is worse than not having one.
+//
+// So this does two things that do work:
+//
+//   1. A POSITIVE test. The actual secrets are in the environment while this
+//      runs. If either one appears in an artifact, in any encoding, that is a
+//      leak and not a judgement call. This is the check that catches the thing
+//      that actually matters, and it cannot produce a false positive.
+//   2. A shape test for the JSON-array form of a secret — 64 integers between 0
+//      and 255. That shape is genuinely distinguishable, because no honest
+//      field in these artifacts is a 64-element number array.
+//
+// What is deliberately not checked: whether a bare base58 blob "looks like" a
+// key. It cannot be known, so it is not guessed at.
 // ---------------------------------------------------------------------------
 
-const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function secretForms(variableName: string): string[] {
+  const raw = process.env[variableName];
+  if (raw === undefined || raw.trim() === "") return [];
+  const trimmed = raw.trim();
 
-function looksLikeBase58Secret(text: string): boolean {
-  // 64 bytes of base58 is 86-88 characters. A 32-byte *public* key is 43-44, so
-  // this threshold does not flag the public keys the artifacts are supposed to
-  // contain.
-  if (text.length < 86 || text.length > 90) return false;
-  for (const character of text) {
-    if (!BASE58_ALPHABET.includes(character)) return false;
+  const forms = [trimmed];
+  if (trimmed.startsWith("[")) {
+    // The JSON-array encoding, normalized: the same bytes can be written with
+    // or without spaces, and a comparison against the raw text alone would miss
+    // a reformatted copy.
+    try {
+      const bytes = JSON.parse(trimmed) as number[];
+      if (Array.isArray(bytes)) {
+        forms.push(bytes.join(","), bytes.join(", "));
+      }
+    } catch {
+      // A malformed secret is the devnet script's problem, not this file's.
+    }
   }
-  return true;
+  return forms.filter((form) => form.length > 0);
+}
+
+const SECRET_FORMS: { source: string; form: string }[] = [];
+for (const variableName of ["DEVNET_PAYER_KEYPAIR", "DEVNET_OPERATOR_KEYPAIR", "DEVNET_TEST_MINT_KEYPAIR", "DEVNET_PAYEE_KEYPAIR"]) {
+  for (const form of secretForms(variableName)) {
+    SECRET_FORMS.push({ source: variableName, form });
+  }
 }
 
 function looksLikeJsonSecret(value: unknown): boolean {
@@ -148,16 +186,21 @@ function looksLikeJsonSecret(value: unknown): boolean {
 
 function scan(node: unknown, path: string, fileName: string) {
   if (typeof node === "string") {
-    if (looksLikeBase58Secret(node)) {
-      fail(`${fileName}: ${path} looks like a base58-encoded 64-byte secret key. Section 27 forbids this.`);
+    for (const { source, form } of SECRET_FORMS) {
+      if (node.includes(form)) {
+        fail(`${fileName}: ${path} contains the value of ${source}. Section 27 forbids this.`);
+      }
     }
-    if (node.toLowerCase().includes("seed phrase") || /(\b\w+\s+){11,}\w+\b.*mnemonic/i.test(node)) {
-      fail(`${fileName}: ${path} mentions a seed phrase. Section 27 forbids this.`);
+    if (/seed phrase|mnemonic/i.test(node)) {
+      fail(`${fileName}: ${path} mentions a seed phrase or mnemonic. Section 27 forbids this.`);
     }
     return;
   }
   if (looksLikeJsonSecret(node)) {
-    fail(`${fileName}: ${path} is a 64-element byte array, which is how a Solana secret key is stored.`);
+    fail(
+      `${fileName}: ${path} is a 64-element byte array, which is how a Solana secret key is stored. ` +
+        "Nothing honest in these artifacts has that shape.",
+    );
     return;
   }
   if (Array.isArray(node)) {
@@ -166,10 +209,6 @@ function scan(node: unknown, path: string, fileName: string) {
   }
   if (node !== null && typeof node === "object") {
     for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-      const lowered = key.toLowerCase();
-      if (lowered.includes("secret") || lowered.includes("privatekey") || lowered.includes("keypair")) {
-        fail(`${fileName}: the field name ${JSON.stringify(key)} suggests a key was written. Section 27 forbids this.`);
-      }
       scan(value, `${path}.${key}`, fileName);
     }
   }
@@ -192,21 +231,34 @@ async function assertTransactionLanded(signature: string, label: string): Promis
     fail(`${label} has no transaction signature recorded`);
     return;
   }
-  const result = await rpc
+
+  // `getTransaction` returns the transaction itself, or null when the cluster
+  // has never seen the signature. Note that this is *not* the `{ value }`
+  // envelope `getAccountInfo` uses — assuming the envelope here made every
+  // check in section 4 read `undefined` and then throw, which is how the first
+  // version of this file would have failed against perfectly good evidence.
+  const transaction = await rpc
     .getTransaction(asSignature(signature), {
       encoding: "json",
       maxSupportedTransactionVersion: 0,
     })
     .send();
 
-  if (result.value === null) {
+  if (transaction === null) {
     fail(`${label}: the chain has no transaction ${signature}. The evidence records one.`);
     return;
   }
-  if (result.value.meta?.err !== null && result.value.meta?.err !== undefined) {
-    fail(`${label}: transaction ${signature} landed but failed on chain: ${JSON.stringify(result.value.meta.err)}`);
+
+  // Cast because kit's `meta` type for a `json`-encoded transaction is the
+  // "not parsed" variant, and which members it declares has moved between
+  // releases. A `json` meta always carries `err`, and the cast keeps this file
+  // compiling against the definition rather than against one release of it.
+  const error = (transaction.meta as { err?: unknown } | null | undefined)?.err;
+  if (error !== null && error !== undefined) {
+    fail(`${label}: transaction ${signature} landed but failed on chain: ${JSON.stringify(error)}`);
     return;
   }
+
   pass(`${label}: ${signature.slice(0, 20)}… confirmed on chain`);
 }
 

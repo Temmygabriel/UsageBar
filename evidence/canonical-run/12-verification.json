@@ -1,0 +1,71 @@
+{
+  "run": "canonical-usagebar-devnet-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-06T23:46:12.749Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "every value is the result of a chain read; this artifact also records the names of the checks that failed, if any, so a partial run cannot be mistaken for a complete one",
+  "channel": "4LtkUAsruLTTi9xzwy6Zd67U8uz8d8sX72gyYsKjPz4S",
+  "transactionSignature": null,
+  "explorer": "https://explorer.solana.com/address/4LtkUAsruLTTi9xzwy6Zd67U8uz8d8sX72gyYsKjPz4S?cluster=devnet",
+  "observed": {
+    "failures": [],
+    "passed": true,
+    "vouchers": [
+      {
+        "index": 1,
+        "target": "1250000",
+        "signature": "4fg77fmFNHCLvGWtjFiFNpPv1p34snU9jZ1hEDpUb4nFKZK4F74txim89a68PWYkDxr98ZeA5a9Ug6D8oxT4aMuP",
+        "elapsedMs": 5001,
+        "watermarkAfter": "1250000"
+      },
+      {
+        "index": 2,
+        "target": "2500000",
+        "signature": "4YFDyWx7niNhPf9NPTaWBe6rG77a4W3s8a2iw6B4oTXgLzq9oy1mcPU55LAhBee5QJUDc3YUgsnyfiN6YgKKgXPT",
+        "elapsedMs": 5002,
+        "watermarkAfter": "2500000"
+      },
+      {
+        "index": 3,
+        "target": "3750000",
+        "signature": "3WtvDJVYELr8HZCarDRHAr42JMG8ndJYhdMnFpBZ64gBkR17U31XbNsX1w4wm9Rc9GXQ4Qbz1hTj7L4Uc9QupSTf",
+        "elapsedMs": 5001,
+        "watermarkAfter": "3750000"
+      },
+      {
+        "index": 4,
+        "target": "5000000",
+        "signature": "61AP6xNNV1jmssSN6Vw5cpEg6EWSFdtDdxGU1uPRXUMuWfyUgBgEiP6srsP7xftoCGx3oY7u1YknyQ47K6JGzrVF",
+        "elapsedMs": 5001,
+        "watermarkAfter": "5000000"
+      },
+      {
+        "index": 5,
+        "target": "6250000",
+        "signature": "3UfbKbeyqDxpzABQ478i2z4EV94TdT489dCJWwLYFMECfZ6u4SWZT7dZm3rDasCYtawC2Dg5ednWmEd5SNP8kGhw",
+        "elapsedMs": 5000,
+        "watermarkAfter": "6250000"
+      }
+    ],
+    "openTransaction": "4oVZ4tFQx75jmBNgAKrxPzDyMps6wCshhQcmy42vPg3Q6kemW95K7jxeXBq47E3Fy25bgKKwEj3iWsQKVbU54YCH",
+    "sealTransaction": "2y3SutVFC9L4ggQjDkj6KFZXETM3cUgB6rgwxbQcEAeTFZwDNCkQXyAPSAdue1gvmb9R7StTNzFGVakb8BS7Ggvj",
+    "distributeTransaction": "5vbXmk8d4bMQUHpvXWzZ993N8CsEvvLXkRnK4cHVYUiKA59X7Po4ru5Jy1hn82D587ZDZTX8eLyfrwxS8AvePeQ5",
+    "deposit": "50000000",
+    "settled": "6250000",
+    "providerReceived": "6250000",
+    "customerRefunded": "43750000",
+    "treasuryDust": "0",
+    "escrowEmptied": true,
+    "reconciles": true
+  },
+  "expected": {
+    "failures": [],
+    "passed": true,
+    "reconciles": true
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "run": "canonical-usagebar-devnet-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-06T23:45:35.559Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "getSlot and getAccountInfo against the configured Devnet RPC; the mint's decimals are read from byte 44 of its account data and its owner from the account metadata",
+  "slotAtStart": "508262903",
+  "channel": null,
+  "transactionSignature": null,
+  "observed": {
+    "cluster": "https://api.devnet.solana.com",
+    "mintOwner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "mintDecimals": 6,
+    "mintSupply": "1000000000000",
+    "treasuryOwner": "4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap",
+    "deposit": "50000000",
+    "ratePerSecond": "250000",
+    "gracePeriodSeconds": 60,
+    "vouchersPlanned": 5,
+    "tickSeconds": 5
+  },
+  "expected": {
+    "cluster": "devnet",
+    "mintOwner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "mintDecimals": 6,
+    "deposit": "50000000"
+  }
+}

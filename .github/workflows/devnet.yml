@@ -24,6 +24,7 @@ on:
           - settle
           - close
           - canonical-run
+          - verify-canonical
       salt:
         description: "Channel salt (open-channel, settle). Change it to open another channel."
         type: string
@@ -104,11 +105,12 @@ jobs:
       - name: Run the devnet script
         run: |
           case "${{ inputs.script }}" in
-            test-token)    node tools/devnet-bootstrap.mjs ;;
-            open-channel)  node tools/devnet-open-channel.mjs ;;
-            settle)        node tools/devnet-settle.mjs ;;
-            close)         node tools/devnet-close.mjs ;;
-            canonical-run) node tools/devnet-canonical-run.mjs ;;
+            test-token)       node tools/devnet-bootstrap.mjs ;;
+            open-channel)     node tools/devnet-open-channel.mjs ;;
+            settle)           node tools/devnet-settle.mjs ;;
+            close)            node tools/devnet-close.mjs ;;
+            canonical-run)    node tools/devnet-canonical-run.mjs ;;
+            verify-canonical) node tools/verify-canonical-run.ts ;;
             *) echo "::error::Unknown script '${{ inputs.script }}'"; exit 1 ;;
           esac
         env:
@@ -129,6 +131,12 @@ jobs:
       # It goes back to the chain rather than re-reading the JSON, and it fails
       # the job — so a canonical run that produced artifacts the chain does not
       # corroborate is a red workflow, not a green one with a caveat.
+      #
+      # The `verify-canonical` task runs this same file against the artifacts
+      # already committed to `evidence/canonical-run/`. It exists so the check
+      # can be repeated by anyone, at any time, without re-running the protocol
+      # and without a keypair — an artifact nobody can re-check is only slightly
+      # better than no artifact at all.
       #
       # `if: always()` only for the artifact *upload* below. This step runs on
       # success, because verifying the output of a failed run would report on a

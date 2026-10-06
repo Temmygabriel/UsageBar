@@ -20,6 +20,12 @@
  * Plain JavaScript, matching `voucher-encoding.test.js`: tsconfig's `include`
  * covers only `.ts`/`.tsx`, so importing a dependency-free `.mjs` module stays
  * out of the typecheck without needing a declaration file.
+ *
+ * "Plain JavaScript" is load-bearing. This file is `.js`, and vitest parses it
+ * with rolldown's JS parser — not the TypeScript one. A `: number` annotation
+ * left on a function parameter is a *syntax error* here, and it took the whole
+ * suite down with it: the file reported `(0 test)` rather than a failing
+ * assertion, so every check below silently stopped running.
  */
 
 import { describe, expect, it } from "vitest";
@@ -27,13 +33,15 @@ import { describe, expect, it } from "vitest";
 import {
   address,
   appendTransactionMessageInstructions,
-  compileTransaction,
   createTransactionMessage,
+  generateKeyPairSigner,
   getAddressEncoder,
+  getCompiledTransactionMessageDecoder,
   getTransactionEncoder,
   pipe,
-  setTransactionMessageFeePayer,
+  setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
+  signTransactionMessageWithSigners,
 } from "@solana/kit";
 
 import { base58Encode as browserBase58, base64ToBytes, messageFromWireTransaction } from "../lib/base58";
@@ -92,17 +100,25 @@ describe("base64ToBytes", () => {
 
 describe("messageFromWireTransaction", () => {
   /**
-   * The real thing: a message compiled by the same library the server uses,
-   * wrapped in the wire encoding the wallet will receive.
+   * The real thing: a message compiled AND SIGNED by the same library the
+   * server uses, wrapped in the wire encoding the wallet will receive.
+   *
+   * Signed rather than merely compiled, because the arithmetic under test is
+   * `1 + 64 * signatureCount`. An unsigned message encodes as `count = 0`, which
+   * a slicer that hardcoded offset 1 would also get right — so the fixture has
+   * to carry a real 64-byte signature slot for these tests to mean anything.
+   *
+   * The signer is generated fresh and holds nothing: it is never funded, never
+   * appears on chain, and is not a secret. Its only job is to make kit's own
+   * encoder emit one signature slot, so the offset is checked against the
+   * library that produced it rather than against our own arithmetic.
    */
-  async function wireTransaction(signatureCount: number) {
+  async function wireTransaction() {
+    const signer = await generateKeyPairSigner();
+
     const message = pipe(
       createTransactionMessage({ version: 0 }),
-      (m) =>
-        setTransactionMessageFeePayer(
-          address("7KzNMe2btqSc23744Yk6aAWak4kfBNtNkkcJCsZ2oJwo"),
-          m,
-        ),
+      (m) => setTransactionMessageFeePayerSigner(signer, m),
       (m) =>
         setTransactionMessageLifetimeUsingBlockhash(
           {
@@ -124,16 +140,19 @@ describe("messageFromWireTransaction", () => {
         ),
     );
 
-    const compiled = compileTransaction(message);
+    const signed = await signTransactionMessageWithSigners(message);
     return {
-      wire: getTransactionEncoder().encode(compiled),
-      messageBytes: compiled.messageBytes,
-      signatureCount,
+      wire: getTransactionEncoder().encode(signed),
+      messageBytes: signed.messageBytes,
+      // Fixed by the single signer above. The first test asserts this against
+      // `wire[0]`, so if kit ever changes how many slots the fixture produces,
+      // the premise fails loudly instead of the arithmetic quietly going untested.
+      signatureCount: 1,
     };
   }
 
   it("slices off exactly the signature block the wire format puts first", async () => {
-    const { wire, messageBytes, signatureCount } = await wireTransaction(1);
+    const { wire, messageBytes, signatureCount } = await wireTransaction();
 
     // Guard the premise, not just the result: if kit ever stops laying the
     // transaction out as `count || signatures || message`, this says so
@@ -144,17 +163,35 @@ describe("messageFromWireTransaction", () => {
     expect([...messageFromWireTransaction(wire, signatureCount)]).toEqual([...messageBytes]);
   });
 
-  it("produces a message the encoder will accept, not just a byte range", async () => {
-    // The strongest available check: the slice must decode as a valid compiled
-    // message. A one-byte error in the offset would still produce bytes, and
-    // they would still be the wrong length only by accident.
-    const { wire, messageBytes } = await wireTransaction(1);
-    const message = messageFromWireTransaction(wire, 1);
+  it("slices at an offset that is load-bearing, not coincidentally correct", async () => {
+    // Deep equality above already pins the exact bytes. This rules out the
+    // failure it could pass for the wrong reason: if the 64-byte step were
+    // doing nothing, slicing by one signature too few would still find the
+    // message. It must not — it must land 64 bytes early.
+    const { wire, messageBytes, signatureCount } = await wireTransaction();
+    const asIfUnsigned = messageFromWireTransaction(wire, signatureCount - 1);
 
-    expect(message.length).toBe(messageBytes.length);
-    // The message header's first byte carries numRequiredSignatures in its high
-    // bits, so a misaligned slice is visible here.
-    expect(message[0]).toBe(messageBytes[0]);
+    expect(asIfUnsigned.length).toBe(messageBytes.length + 64);
+    expect([...asIfUnsigned]).not.toEqual([...messageBytes]);
+  });
+
+  it("produces a slice that decodes as a compiled message, not just a byte range", async () => {
+    // The strongest check available: the bytes must *be* a valid compiled
+    // message, not merely the right length. A one-byte error in the offset
+    // would still produce a buffer, and only a decode says whether it is real.
+    //
+    // Both sides are decoded with kit's own decoder and compared as decoded
+    // messages rather than re-encoded. Re-encoding would add an assumption about
+    // the encoder being the exact inverse; this needs only that the same decoder
+    // reads two byte ranges as the same message.
+    const { wire, messageBytes, signatureCount } = await wireTransaction();
+    const decoder = getCompiledTransactionMessageDecoder();
+
+    const fromSlice = decoder.decode(messageFromWireTransaction(wire, signatureCount));
+    const fromMessage = decoder.decode(messageBytes);
+
+    expect(fromSlice.version).toBe(0);
+    expect(fromSlice).toEqual(fromMessage);
   });
 
   it("refuses a transaction too short to contain the signatures it claims", () => {

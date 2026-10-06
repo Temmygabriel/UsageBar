@@ -1,6 +1,6 @@
 # UsageBar — Progress Log
 
-**Last updated:** 2026-10-05
+**Last updated:** 2026-10-07
 **Submission deadline:** 2026-10-12
 **Repo:** <https://github.com/Temmygabriel/UsageBar>
 **Build spec:** `USAGEBAR_BUILD_SPEC.md`
@@ -30,6 +30,28 @@ getting the unused remainder back. The customer's key never leaves their
 wallet.
 
 Not yet deployed. Not yet run end to end from a browser by a human.
+
+**CI is green** — typecheck, 94 tests across 4 files, and a production build.
+That is the whole pipeline, and it is the only compiler available here.
+
+---
+
+## Documents — written 2026-10-05 to 2026-10-07
+
+The build spec asks for artefacts, not only code. Written so far:
+
+| Document | What it holds |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | what runs where, which key signs what, and where the trust boundaries actually fall |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | trust model, signer model, ceiling protection, voucher validation, replay and retry safety, and the limitations of the faucet |
+| [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) | what the product does not do — nine limits, each marked deliberate or unfinished |
+| [`docs/CLAIM_STATUS.md`](docs/CLAIM_STATUS.md) | every claim with its evidence, in four permitted statuses |
+
+The one deliberate gap is **`docs/UX_TEST.md`**, which the build spec defines as
+the record of a first-viewport test with a stranger. It cannot be written
+honestly until someone who is not us looks at the interface, and manufacturing
+positive answers is explicitly forbidden. It stays empty until a real person has
+seen it.
 
 ---
 
@@ -130,6 +152,45 @@ Fixing it also removed a `as unknown as Record<string, unknown>` in
 `app/api/session/route.ts` that had only been there to work around the broken
 type. Removing it was the point: a double cast that exists to satisfy a wrong
 type is a place where a real mistake can hide.
+
+### Rounds two and three, and the one that got through
+
+Three pushes were needed, and the interesting part is the shape of what the
+later rounds caught — each fix exposed the next layer rather than the same layer
+again.
+
+| Round | Error | Cause | Fix |
+|---|---|---|---|
+| 2 | `chain.ts` ×3: `'string' is not assignable to 'Address'` | the `.mjs` builders return plain strings; kit's `Address` is a *branded* string, so `string` will not do | one `instructionFrom()` bridge, rather than a cast at each of the six call sites |
+| 2 | `chain.ts(761,68): 'signer' does not exist in type 'AccountMeta<string>'` | annotating the array as `(Instruction & InstructionWithSigners)[]` broke contextual typing for the inline `accounts` literal, so it was checked against `Instruction` — which types accounts as `AccountMeta[]`, and `AccountMeta` has no `signer` | build the accounts into a typed `const sealAccounts: SignerAccounts` first, which expresses "this meta carries a signer" without a cast |
+| 2 | `session/route.ts(166,30): Expected 3 arguments, but got 2` | **our own regression.** While moving validation so that a bad request reports 400 instead of 502, the `seconds` argument was dropped from `commitUsage` — the meter would have billed zero seconds on every tick | restored |
+| 3 | `SIGNER is not defined` (×4, incl. one test failing as *"threw, but not the error we wanted"*) | a test fixture declared inside one `describe` block and asserted on by three others | hoisted to module scope |
+| 3 | `token account is 65 bytes, too short to carry an amount` | the "reads from the right place inside a larger buffer" test sliced `subarray(100, 165)` — 65 bytes — so it tripped the length guard and never reached the offset read it exists to check | carves a full 165-byte window, with an assertion on the slice length so a future shortening fails on *length*, not on the guard |
+| 4 | `protocol-bytes.test.js`: `Parse failure — Expected ',' or ')' but found ':'`, reported as **`(0 test)`** | a `: number` annotation on a function parameter. The file is `.js`, and rolldown parses `.js` with the JS parser, not the TypeScript one | annotation removed; the file now says in its header that "plain JavaScript" is load-bearing |
+
+The round-2 `TS2554` is the one worth keeping. It is not a typing problem at
+all: a real behavioural bug, in money arithmetic, introduced by a refactor that
+was itself a correctness improvement. It was caught only because the whole
+pipeline runs on every push. A local `tsc` would have caught it too — which is
+the argument for having one, and the reason the development machine's 0.6 GB of
+free RAM is a real cost rather than an inconvenience.
+
+The round-4 failure is the opposite kind and the more dangerous one. It is not an
+assertion that failed — it is a **suite that never ran**, reported as `(0 test)`
+while the run as a whole said `83 passed`. Every check in that file had been
+silently checking nothing, including the two that exist to keep the duplicated
+base58 encoder and the transaction-offset arithmetic honest. Fixing the syntax
+then exposed a second problem underneath it: the fixture compiled a message with
+no signer, so it produced zero signature slots while the test asserted against
+`1 + 64 × count`. It could never have passed, and a version that "passed" would
+have proved nothing — with no signatures the offset is 1, which a slicer that
+hardcoded 1 would also get right. The fixture now signs with a generated
+keypair, and the suite checks the offset three ways, including one case that must
+land 64 bytes early.
+
+**Green as of 2026-10-06: typecheck, 94 tests across 4 files, and a production
+build — all passing.** `docs/ARCHITECTURE.md`, `docs/SECURITY.md` and
+`docs/LIMITATIONS.md` were written alongside it.
 
 ### The meter cannot flatter itself
 
@@ -408,7 +469,7 @@ than burned.
 
 ### Time
 
-Seven days remain, and the application has not been started.
+Five days remain, and the application has not been started.
 
 ---
 
@@ -433,6 +494,8 @@ Seven days remain, and the application has not been started.
 - **No claim of a browser run.** Until a human has connected a real wallet to a
   deployed build and closed a real tab, the honest status of the wallet
   handshake is "written and reviewed, never exercised".
+- **No `docs/UX_TEST.md`.** It records a first-viewport test with a stranger, and
+  the spec forbids manufacturing answers. It needs a real person who is not us.
 
 ---
 

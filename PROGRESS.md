@@ -487,6 +487,52 @@ Five days remain, and the application has not been started.
 3. Exercise `withdrawPayer` and a distribution plan with real recipients, both
    still UNVERIFIED, but neither blocks the application.
 
+---
+
+## The canonical run — written 2026-10-07, not yet executed
+
+Build spec Sections 25-29 ask for one uninterrupted pass through the whole
+lifecycle, named `canonical-usagebar-devnet-001`, with an evidence artifact per
+step. The generator is `tools/devnet-canonical-run.mjs`; it runs as the
+`canonical-run` task in the Devnet workflow and writes all twelve files of
+Section 26's layout into `evidence/canonical-run/`, which the workflow uploads
+as an artifact.
+
+Three design decisions worth recording, because each one was a fork in the road:
+
+**The vouchers are timed, not typed.** Section 25 permits fewer than five
+vouchers "to preserve reliability" and forbids fabricating events to hit the
+number. So the run produces five vouchers on a real five-second cadence, and
+each one bills time that genuinely elapsed — measured with `performance.now()`
+and recorded in the artifact as `realElapsedMs`. A sequence of numbers chosen to
+look like metering would have been easier and would have proved nothing about
+the meter.
+
+**The seal carries no voucher.** `settleAndSeal(true)` is the version the
+existing `close` script uses, and it would have been the obvious copy. But the
+last metered voucher has already moved the watermark to the final value, and a
+seal-time voucher must *strictly exceed* it (error 234) — so attaching one would
+mean billing seconds that were never metered. The meter stopped when the tab
+closed; the seal freezes the watermark it actually reached.
+
+**The payee is the authorized signer.** `lib/server/env.ts` derives
+`payeeAddress` from `DEVNET_OPERATOR_KEYPAIR`, so an application-opened channel
+has `payee === authorized_signer`. The canonical run mirrors that, because the
+artifacts are supposed to describe the product. Worth knowing: the standalone
+`tools/devnet-close.mjs` reads a *separate* `DEVNET_PAYEE_KEYPAIR` and asserts
+`payee.address === channel.payee`, so it would reject a channel the application
+opened. That is not a bug in either — the app closes its own channels through
+`/api/session` — but the two tools disagree about the deployment's key model,
+and this is the note that says so.
+
+**Status: dispatched, unverified.** The run has been triggered and its outcome
+is not yet known. Until the workflow is green and its artifacts have been read
+back, this section claims nothing about the result, and `evidence/README.md`
+still says the directory is empty. When it passes, both get updated from the
+artifacts rather than from intention.
+
+---
+
 ## Deliberately not done yet
 
 - **No Vercel deployment.** Blocked on the token, not on the work.
@@ -511,6 +557,7 @@ free RAM and `npm install` hangs on it. Everything runs in GitHub Actions.
 | Open a channel | Actions → **Devnet** → `open-channel` |
 | Settle with a voucher | Actions → **Devnet** → `settle` |
 | Seal and pay out | Actions → **Devnet** → `close` |
+| The full lifecycle, with evidence | Actions → **Devnet** → `canonical-run` (writes `evidence/canonical-run/` and uploads it as an artifact) |
 
 The Devnet workflow is manual-trigger only, because it reads private keys from
 repository secrets.

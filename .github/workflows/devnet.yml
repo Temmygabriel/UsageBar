@@ -23,6 +23,7 @@ on:
           - open-channel
           - settle
           - close
+          - canonical-run
       salt:
         description: "Channel salt (open-channel, settle). Change it to open another channel."
         type: string
@@ -48,6 +49,11 @@ on:
         type: string
         required: false
         default: ""
+      vouchers:
+        description: "canonical-run only: how many metered vouchers to produce. Spec Section 25 asks for five; each one waits out the interval it bills for, so this is also a runtime in tens of seconds."
+        type: string
+        required: false
+        default: "5"
 
 permissions:
   contents: read
@@ -98,10 +104,11 @@ jobs:
       - name: Run the devnet script
         run: |
           case "${{ inputs.script }}" in
-            test-token)   node tools/devnet-bootstrap.mjs ;;
-            open-channel) node tools/devnet-open-channel.mjs ;;
-            settle)       node tools/devnet-settle.mjs ;;
-            close)        node tools/devnet-close.mjs ;;
+            test-token)    node tools/devnet-bootstrap.mjs ;;
+            open-channel)  node tools/devnet-open-channel.mjs ;;
+            settle)        node tools/devnet-settle.mjs ;;
+            close)         node tools/devnet-close.mjs ;;
+            canonical-run) node tools/devnet-canonical-run.mjs ;;
             *) echo "::error::Unknown script '${{ inputs.script }}'"; exit 1 ;;
           esac
         env:
@@ -110,7 +117,23 @@ jobs:
           CUMULATIVE: ${{ inputs.cumulative }}
           FINAL_CUMULATIVE: ${{ inputs.final_cumulative }}
           TREASURY_OWNER: ${{ inputs.treasury_owner }}
+          VOUCHERS: ${{ inputs.vouchers }}
           DEVNET_PAYER_KEYPAIR: ${{ secrets.DEVNET_PAYER_KEYPAIR }}
           DEVNET_TEST_MINT_KEYPAIR: ${{ secrets.DEVNET_TEST_MINT_KEYPAIR }}
           DEVNET_OPERATOR_KEYPAIR: ${{ secrets.DEVNET_OPERATOR_KEYPAIR }}
           DEVNET_PAYEE_KEYPAIR: ${{ secrets.DEVNET_PAYEE_KEYPAIR }}
+
+      # The evidence is the point of the canonical run, so it is collected even
+      # when the run fails — a partial run's artifacts are exactly what a reader
+      # needs in order to see which steps genuinely happened and where it
+      # stopped. `if: always()` is what makes that true.
+      #
+      # Uploaded as an artifact rather than committed, because the run happens
+      # on a schedule the repository should not be rewriting itself on.
+      - name: Upload the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-run-evidence
+          path: evidence/canonical-run/
+          if-no-files-found: warn

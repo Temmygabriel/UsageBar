@@ -1,11 +1,9 @@
 # Evidence
 
-**This directory is intentionally empty.**
+This directory holds the canonical run `canonical-usagebar-devnet-001` — the
+artifacts that prove UsageBar works on Solana Devnet with real transactions.
 
-It will hold the canonical run `canonical-usagebar-devnet-001` — the artifacts
-that prove UsageBar works on Solana Devnet with real transactions.
-
-Build spec Section 26 defines the intended layout:
+Build spec Section 26 defines the layout:
 
 ```
 evidence/canonical-run/
@@ -32,5 +30,24 @@ evidence/canonical-run/
 - Timestamps that are application observations must not be presented as
   blockchain timestamps.
 
-Nothing exists here yet because no run has been performed. When the protocol
-gate passes, the first real artifacts land here.
+## Status
+
+`canonical-run/` is **not populated yet.** The generator is written and lives
+at `tools/devnet-canonical-run.mjs`; it runs via the Devnet workflow's
+`canonical-run` task and writes all twelve files in one pass, uploading them as
+a workflow artifact.
+
+It has not been executed, and this file will not claim otherwise until it has.
+
+What *has* passed so far is a set of narrower gates, each with its own record:
+
+| Gate | Where it is recorded |
+|---|---|
+| Program and instruction discriminators verified against the deployed IDL | [`../docs/CLAIM_STATUS.md`](../docs/CLAIM_STATUS.md) |
+| Wire-format encoding verified, byte for byte, by the test suite | [`../tests/`](../tests/), 94 tests |
+| A channel opened, metered, settled and closed by the scripts under `tools/` | [`../PROGRESS.md`](../PROGRESS.md) |
+
+Those are not a substitute for the canonical run, and the distinction is the
+reason this file exists rather than being folded into the progress log: a
+passing test suite proves an encoder is consistent with itself, and a canonical
+run proves the chain agreed.

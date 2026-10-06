@@ -145,7 +145,23 @@ const payer = await createSignerFromKeyPair(await createKeyPairFromBytes(payerSe
 const operatorSecretKey = decodeSecretKey("DEVNET_OPERATOR_KEYPAIR");
 const operatorSeed = operatorSecretKey.subarray(0, 32);
 // The app uses one key for both roles; so does this. See lib/server/env.ts.
+//
+// Both forms are built deliberately. `operator` is the signer object that
+// `settleAndSeal` needs in order to sign, and `operatorAddress` is the public
+// half read out of the secret key. They are derived by two different routes on
+// purpose: if the 64 bytes were half of one keypair and half of another,
+// `createKeyPairFromBytes` would reject them, and if it did not, the two would
+// disagree here — which is a much clearer failure than a channel whose
+// authorized_signer is not who we think it is.
+const operator = await createSignerFromKeyPair(await createKeyPairFromBytes(operatorSecretKey));
 const operatorAddress = addressDecoder.decode(operatorSecretKey.subarray(32, 64));
+
+if (operator.address !== operatorAddress) {
+  throw new Error(
+    `DEVNET_OPERATOR_KEYPAIR does not hold a consistent keypair: the signer's address is ` +
+      `${operator.address}, but the public half of the secret key is ${operatorAddress}.`,
+  );
+}
 
 const DECIMALS = 6;
 const format = (atomic) => `${Number(atomic) / 10 ** DECIMALS} TEST`;
@@ -484,6 +500,12 @@ let openSignature = null;
       channel: decoded(channel),
       channelBytes: account.raw.length,
       escrowLamports: account.lamports,
+      // Recorded so the verifier can re-read these accounts from chain later
+      // rather than taking the balances above on trust.
+      payerTokenAccount,
+      channelTokenAccount,
+      payeeTokenAccount,
+      treasuryTokenAccount,
       payerBalanceBefore: balancesBefore.payer?.toString() ?? null,
       payerBalanceAfter: balancesAfter.payer?.toString() ?? null,
       channelBalanceAfter: balancesAfter.channel?.toString() ?? null,

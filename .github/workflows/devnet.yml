@@ -123,6 +123,26 @@ jobs:
           DEVNET_OPERATOR_KEYPAIR: ${{ secrets.DEVNET_OPERATOR_KEYPAIR }}
           DEVNET_PAYEE_KEYPAIR: ${{ secrets.DEVNET_PAYEE_KEYPAIR }}
 
+      # Section 29's verifier, run against the artifacts the step above just
+      # wrote, while they are still on disk.
+      #
+      # It goes back to the chain rather than re-reading the JSON, and it fails
+      # the job — so a canonical run that produced artifacts the chain does not
+      # corroborate is a red workflow, not a green one with a caveat.
+      #
+      # `if: always()` only for the artifact *upload* below. This step runs on
+      # success, because verifying the output of a failed run would report on a
+      # half-finished sequence.
+      #
+      # No `success()` in the condition: a step-level `if` that names no status
+      # function already implies it, and saying it twice reads like it means
+      # something.
+      - name: Verify the evidence against the chain
+        if: inputs.script == 'canonical-run'
+        run: node tools/verify-canonical-run.ts
+        env:
+          EVIDENCE_DIR: evidence/canonical-run
+
       # The evidence is the point of the canonical run, so it is collected even
       # when the run fails — a partial run's artifacts are exactly what a reader
       # needs in order to see which steps genuinely happened and where it

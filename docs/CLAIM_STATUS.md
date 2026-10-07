@@ -12,9 +12,11 @@ INFERRED   — follows from proven facts, but not directly demonstrated
 UNVERIFIED — not tested. This is the default. It is not a soft "probably fine".
 ```
 
-Last updated: **2026-10-05** (three gates passed — a real channel was opened,
-its watermark advanced by real cumulative vouchers, and it was sealed and paid
-out, with every balance read back from raw chain state).
+Last updated: **2026-10-07** (four gates passed — a real channel was opened, its
+watermark advanced by real cumulative vouchers, it was sealed and paid out with
+every balance read back from raw chain state, and the canonical run
+`canonical-usagebar-devnet-001` completed all twelve steps in one pass with its
+artifacts committed and independently re-verified against the chain).
 
 ---
 
@@ -126,6 +128,36 @@ open, via transaction `51FcroWv457JrF9aARRxGqzUp8j8Azohtr1KD6q76bxeRjNDVzFPM4Yso
 | The plan reveal hashes to the commitment made at `open` | **PROVEN** — the 4-byte empty-plan preimage hashes to `df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119`, byte-identical to the `distribution_hash` the channel had carried since it was opened. This independently confirms the preimage's wire layout. |
 | The devnet program's real treasury owner is known | **PROVEN** — `4zTeC5mVqWLruDexgU2mV66p9t5vCA9JyiZqdGDUspap`, recovered by finding those bytes in the deployed ProgramData ELF at offset 61435. It is also the program's upgrade authority. |
 
+### Gate 4 — the canonical run, and a verifier that disagrees with it
+
+`canonical-usagebar-devnet-001`, run 2026-10-07 in one uninterrupted pass. The
+twelve artifacts are committed under
+[`../evidence/canonical-run/`](../evidence/canonical-run/).
+
+| Claim | Status |
+|---|---|
+| The canonical run completes all twelve steps in one pass | **PROVEN** — channel `4LtkUAsruLTTi9xzwy6Zd67U8uz8d8sX72gyYsKjPz4S`, opened at slot `508262903`, deposit `50000000` |
+| Money goes in, and the account says so | **PROVEN** — payer ATA `999978.5` → `999928.5` TEST, escrow ATA `0` → `50` TEST, both read back after `open` confirmed |
+| The meter advances on a real clock rather than a typed number | **PROVEN** — five vouchers at cumulative `1.25 / 2.5 / 3.75 / 5 / 6.25` TEST, each produced after a measured interval of 5000-5002 ms, with `realElapsedMs` recorded in each artifact |
+| The voucher is bound to the channel and to the authorized signer | **PROVEN** — the payload's `channel_id` bytes decode to the channel address, and the signing key re-derives to the channel's `authorized_signer`; a mismatch is errors 232 and 237 |
+| The escrow can be sealed without billing unmetered time | **PROVEN** — `settleAndSeal` sent with `hasVoucher: false`, freezing the watermark the last metered voucher had already recorded, rather than attaching a voucher that would have to exceed it |
+| The provider is paid exactly the metered amount | **PROVEN** — provider's token account holds `6250000` atomic units on chain, equal to the final watermark |
+| The customer gets the exact remainder back | **PROVEN** — `43750000` atomic units, exactly `deposit − settled`; deposit splits as `6250000 + 43750000 + 0` |
+| The escrow is emptied | **PROVEN** — the channel's token account is closed on chain, not merely zeroed |
+| The plan reveal matches the commitment made at `open` | **PROVEN** — the 4-byte empty-plan preimage hashes to `df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119`, and byte 56 of the on-chain channel account holds that same value |
+| Every transaction the run recorded is on chain | **PROVEN** — all eight signatures (open, five vouchers, seal, distribute) re-queried by the verifier and confirmed |
+| The channel address in the artifacts is not merely trusted | **PROVEN** — the verifier re-derives the PDA from the seven seeds recorded beside it and gets the same address |
+| The verifier passes against real evidence | **PROVEN** — `verify-canonical` run 37548733898, green, every check `ok`, no notes |
+| The verifier can fail | **OBSERVED** — it failed twice before it passed, once on a `getTransaction` return shape assumed to be `{ value }` and once on its own secret detector flagging all eighteen transaction signatures. Both are recorded below rather than quietly fixed. |
+
+**The honest note on Gate 4.** Unlike Gate 3, this channel was **not reaped**.
+It was opened seconds before it closed, and reclamation requires
+`slot > open_slot + 1500`; the account therefore survives at status `3`
+(Distributed) with the escrow drained. Gate 3's channel was old enough and was
+reaped. Both outcomes are the program behaving correctly, and which one you get
+is a property of how long the channel lived — so the artifacts record the case
+that happened rather than asserting the tidier one.
+
 ### Still not proven
 
 | Claim | Status |
@@ -134,9 +166,36 @@ open, via transaction `51FcroWv457JrF9aARRxGqzUp8j8Azohtr1KD6q76bxeRjNDVzFPM4Yso
 | `requestClose` / `seal` (the timeout path, discriminators 5 and 6) | UNVERIFIED — the cooperative `settleAndSeal` path was used instead, so the payer-protection timeout is untested |
 | `topUp` (discriminator 3) | UNVERIFIED |
 | A distribution plan with actual recipients | UNVERIFIED — every run so far used an empty plan. The `recipient(32) || bps(u16)` layout is unit-tested but has never been executed on chain. |
-| The canonical run `canonical-usagebar-devnet-001` completes | UNVERIFIED |
-| The verifier passes against real evidence | UNVERIFIED |
 | The application deploys to Vercel and reaches devnet RPC | UNVERIFIED |
+| The wallet handshake has been exercised by a human in a browser | UNVERIFIED — the largest remaining gap, and the one path CI structurally cannot cover |
+
+## Two things the verifier got wrong first
+
+Recorded because a verifier that has never failed is a verifier nobody has
+reason to trust, and both of these are more interesting than the fix.
+
+**It assumed `getTransaction` returns `{ value }`.** It does not — it returns
+the transaction itself, or `null`. `getAccountInfo` *does* use the envelope, and
+carrying that assumption across made every chain check read `undefined` and then
+throw. The lesson is narrow: two RPC methods from the same client, two different
+return shapes, and nothing in the code said which was which.
+
+**Its secret detector flagged all eighteen transaction signatures.** The rule
+was "a base58 string of 86-90 characters is a 64-byte secret key". But a Solana
+transaction *signature* is also 64 bytes and also base58. The two are the same
+shape, and no inspection of a string alone separates them. A check built that
+way fails every honest run and can only be quieted by deleting it — which is
+worse than never having written it.
+
+It now runs a **positive** test instead: the artifact text is compared against
+the actual secret values, which are in the environment while the verifier runs,
+and which cannot produce a false positive. A shape test remains for the
+JSON-array encoding of a key, because a 64-element array of bytes *is*
+distinguishable — nothing honest in these artifacts has that shape. What is not
+checked is whether a bare base58 blob looks like a key. It cannot be known, so
+it is not guessed at.
+
+---
 
 ## Production and business — UNVERIFIED
 

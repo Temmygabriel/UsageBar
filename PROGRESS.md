@@ -14,12 +14,18 @@
 
 ## Where we are right now
 
-**All three gates are passed. The protocol works end to end on devnet.**
+**All three gates are passed, and so is the canonical run.**
 
-A real payment channel was opened (money in), its settled watermark was advanced
-by cumulative vouchers the operator signed off-chain (the meter moves), and it
-was sealed and paid out (money back out to the right people, escrow emptied to
-zero, channel account reaped).
+The canonical run `canonical-usagebar-devnet-001` completed in one uninterrupted
+pass on 2026-10-07, all twelve steps, with an evidence artifact for each and
+every value read back from chain. 50 TEST in, 6.25 TEST metered over five real
+five-second intervals, 43.75 TEST back to the customer, escrow drained to zero.
+The artifacts are committed under [`evidence/canonical-run/`](evidence/canonical-run/).
+
+Before that, a real payment channel was opened (money in), its settled watermark
+was advanced by cumulative vouchers the operator signed off-chain (the meter
+moves), and it was sealed and paid out (money back out to the right people,
+escrow emptied to zero).
 
 That last step is the product's entire promise, and it is no longer a plan.
 
@@ -525,11 +531,41 @@ opened. That is not a bug in either — the app closes its own channels through
 `/api/session` — but the two tools disagree about the deployment's key model,
 and this is the note that says so.
 
-**Status: dispatched, unverified.** The run has been triggered and its outcome
-is not yet known. Until the workflow is green and its artifacts have been read
-back, this section claims nothing about the result, and `evidence/README.md`
-still says the directory is empty. When it passes, both get updated from the
-artifacts rather than from intention.
+**Status: PASSED, and independently re-verified.** See
+[`evidence/README.md`](evidence/README.md) for the numbers and
+[`docs/CLAIM_STATUS.md`](docs/CLAIM_STATUS.md) Gate 4 for the claim-by-claim
+record. The story of how it got there is worth keeping, because the first two
+attempts failed for reasons that say something about this project's constraints:
+
+**Attempt 1** reached step 8 of 12 before throwing `ReferenceError: operator is
+not defined` — the operator's address was in scope but no signer object for it
+ever was. Seven artifacts were written and the channel genuinely held 50 TEST
+with five metered vouchers behind it. This is the class of bug that only a
+runtime catches, and the local machine cannot run the script at all.
+
+**Attempt 2** completed all twelve steps. Its verifier then crashed on
+`getAddressDecoder is not defined`, and the run before that had a verifier that
+assumed `getTransaction` returns `{ value }` like `getAccountInfo` does. It does
+not.
+
+**Attempt 3** — the verifier ran clean, every check `ok`, and it found one thing
+worth knowing: the channel was **not** reaped this time. Reclamation needs
+`slot > open_slot + 1500`, and the channel was opened seconds before it closed,
+so the account survives at status `3` (Distributed) with the escrow drained.
+Gate 3's channel was old enough and was reaped. Both are the program working
+correctly, and the difference is a property of how long the channel lived rather
+than of the program — so the artifacts record the case that happened.
+
+**The verifier's secret scan was wrong, and that is the most useful failure
+here.** Its first version flagged any base58 string of 86-90 characters as a
+probable secret key. Against a legitimate run it flagged **all eighteen
+transaction signatures** — because a Solana signature is also 64 bytes, and
+therefore also 86-88 base58 characters. The two are the same shape and no
+inspection of a string alone separates them. A check built that way fails every
+honest run, and the only way to quiet it is to delete it, which is worse than
+never writing it. It now does a **positive** test — comparing artifacts against
+the actual secret values, which are in the environment while it runs — plus a
+shape test for the JSON-array form of a key, which genuinely is distinguishable.
 
 ---
 

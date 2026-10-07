@@ -566,9 +566,17 @@ async function probeFullFlow(wallet, mint, fundedTokens) {
   );
 
   const ourTokensAtEnd = await tokensOf(wallet.address, mint);
+  const refunded = ourTokensAtEnd - ourTokensAfterOpen;
   check(
-    ourTokensAtEnd === expectedRefund,
-    `the customer really got ${ourTokensAtEnd} back, exactly deposit − settled`,
+    refunded === expectedRefund,
+    `the customer's balance rose by ${refunded} on the close, exactly the refund`,
+  );
+  // The number that actually matters to a customer: what the whole session cost.
+  // It should be precisely what the meter recorded and not a unit more.
+  check(
+    ourTokensAtEnd === fundedTokens - expectedPayout,
+    `the session cost the customer ${fundedTokens - ourTokensAtEnd} atomic units, ` +
+      `exactly the ${expectedPayout} the meter recorded`,
   );
 
   const escrowAfter = await tokensOf(channelAddress, mint);
@@ -638,12 +646,12 @@ async function probeRefusals() {
 
   // A *valid* address that holds something which is not a channel. Saying
   // "not found" for it would be wrong — the account exists, it simply is not
-  // this program's — and this is the check that keeps those two apart.
+  // this program's — and 502 would be wrong too, because nothing failed. 422.
   const notAChannel = await getJson("/api/session?channel=11111111111111111111111111111111");
   check(
-    notAChannel.status !== 200,
-    `an address holding a non-channel account is refused rather than misreported ` +
-      `(status ${notAChannel.status})`,
+    notAChannel.status === 422,
+    `an address holding a non-channel account is refused as a bad request ` +
+      `(status ${notAChannel.status}), not reported as the server failing`,
   );
 }
 

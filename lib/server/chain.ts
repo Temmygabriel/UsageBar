@@ -70,6 +70,7 @@ import {
 } from "../../tools/lib/protocol.mjs";
 
 import type { ServerConfig } from "./env";
+import { RequestError } from "./http";
 
 const PROGRAM = address(PAYMENT_CHANNELS_PROGRAM);
 const TOKEN_PROGRAM = TOKEN_PROGRAM_ADDRESS;
@@ -261,8 +262,20 @@ export async function readChannel(
   // The assertion is required, not lazy: `decodeChannel` is JavaScript, so
   // TypeScript sees only the header literal it starts from. `DecodedChannel`
   // above is the full account and is the thing every caller is written against.
-  const channel = decodeChannel(account.data, getAddressDecoder()) as DecodedChannel;
-  return { channel, bytes: account.data.length };
+  //
+  // A decode failure is a RequestError, not a 502: the caller asked about an
+  // address that holds something, and the answer is that it is not a channel.
+  // That is a definite answer to a reasonable question, so it should not be
+  // reported as the server failing.
+  try {
+    const channel = decodeChannel(account.data, getAddressDecoder()) as DecodedChannel;
+    return { channel, bytes: account.data.length };
+  } catch (error) {
+    throw new RequestError(
+      `The account at ${channelAddress} is ${account.data.length} bytes and is not a payment ` +
+        `channel, so it cannot be read as one. ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

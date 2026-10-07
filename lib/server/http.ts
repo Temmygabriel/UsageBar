@@ -19,6 +19,18 @@ export function jsonOk(payload: Record<string, unknown>): Response {
 }
 
 /**
+ * A failure caused by what the caller asked for, not by us.
+ *
+ * Without this, every error a handler raises became a 502, which reads as "the
+ * server is broken". Some of them are not: asking about an account that is not a
+ * channel is a perfectly good question with a definite answer, and a judge who
+ * pastes the wrong address should be told that rather than shown a gateway
+ * failure. 502 stays for the case it actually describes — the chain, or our own
+ * logic, not doing what we expected.
+ */
+export class RequestError extends Error {}
+
+/**
  * Run a handler with a loaded configuration, or answer 503 with the reason.
  *
  * The unconfigured case is deliberately not an error the interface has to guess
@@ -43,6 +55,9 @@ export async function withConfig(
   try {
     return await handler(loaded.config);
   } catch (error) {
+    if (error instanceof RequestError) {
+      return jsonError(422, error.message);
+    }
     return jsonError(502, error instanceof Error ? error.message : String(error));
   }
 }

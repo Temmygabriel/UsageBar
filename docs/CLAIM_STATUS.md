@@ -12,11 +12,13 @@ INFERRED   — follows from proven facts, but not directly demonstrated
 UNVERIFIED — not tested. This is the default. It is not a soft "probably fine".
 ```
 
-Last updated: **2026-10-07** (four gates passed — a real channel was opened, its
+Last updated: **2026-10-07** (five gates passed — a real channel was opened, its
 watermark advanced by real cumulative vouchers, it was sealed and paid out with
-every balance read back from raw chain state, and the canonical run
+every balance read back from raw chain state, the canonical run
 `canonical-usagebar-devnet-001` completed all twelve steps in one pass with its
-artifacts committed and independently re-verified against the chain).
+artifacts committed and independently re-verified, and the **deployed
+application** was driven end to end over HTTPS against Devnet — which found and
+fixed a real bug in the close path).
 
 ---
 
@@ -158,16 +160,65 @@ reaped. Both outcomes are the program behaving correctly, and which one you get
 is a property of how long the channel lived — so the artifacts record the case
 that happened rather than asserting the tidier one.
 
+### Gate 5 — the deployed application, driven over HTTPS
+
+`https://usagebar.vercel.app`, deployment `dpl_9dsXjP7zrJ5PZUGyNZvDmbBVnXHa`
+at commit `81ef6f3`, probed by [`../tools/probe-deployed-app.mjs`](../tools/probe-deployed-app.mjs).
+**71/71 checks passed**, and the run is committed as
+[`../evidence/deployed-app-probe.json`](../evidence/deployed-app-probe.json).
+
+Gates 1-4 drove the program through the tooling. This one drives the thing a
+judge actually touches: the deployment's own HTTP API, over the public internet,
+using no code from this repository on the client side except the probe itself.
+Nothing is taken on the deployment's word — every balance and every account
+value is re-read from a Devnet RPC endpoint this repository does not control,
+over raw JSON-RPC rather than the application's own client.
+
+| Claim | Status |
+|---|---|
+| The application deploys to Vercel and reaches devnet RPC | **PROVEN** — the deployed serverless functions read chain state and land transactions |
+| The deployment holds working server-side keys | **PROVEN** — it signed and submitted two faucet transfers that both reached `finalized` |
+| The faucet moves real money | **PROVEN** — a fresh wallet went `0 → 50000000` lamports and gained a token account holding `100000000` atomic units, read back from chain |
+| The deployment derives a channel address and returns an unsigned transaction | **PROVEN** — channel `BFFqXPygJsBkGWQoGGowR4qgAtuSuRYnAsegp5oeT1Vt`, in a version-0 message with one required signature |
+| The transaction it builds is one a wallet can actually sign and land | **PROVEN** — signed by the probe and accepted by the cluster as tx `NqVoKGt3ymR4EviCE5VSfPpoEUAKBymgKKRfmvkATibjuxpS5u83LSBqdqnF6HbRGxZJp66onHDTjSLk9EqvnX8` |
+| The customer's deposit leaves their wallet for escrow | **PROVEN** — the customer's balance went `100000000 → 50000000` while the escrow account held `50000000`; the channel on chain is 256 bytes, discriminator `1`, status `0`, with the customer recorded as payer |
+| The deployed meter advances a real on-chain watermark | **PROVEN** — `settled` went `0 → 1250000 → 2500000`, each read back from the channel's byte 20 as well as from the API |
+| The deployment closes a tab and pays out | **PROVEN** — seal tx `2qKDtQPMKWj7nYG1K66bf82LXSfdn9Ysw1kA4ZjMPfV3gaAoz9wY4P5htKxoEMVw9DjZYVAfAweXwZ2LWQKqC3RM`, distribute tx `5fLEXCyemBHEv7DxTXWR2ZXUDo4PxD1euREW9ekrGRQNQtB61cRDD9DNJbGHS9gUvnYidvawnCpSJyC7f1WVCref` |
+| The payout figures it reports are what actually moved | **PROVEN** — the provider's token account really grew by `2500000` and the customer's really rose by `47500000`, both read from chain rather than from the response |
+| The session costs the customer exactly what the meter recorded | **PROVEN** — net cost `2500000`, no rounding, no remainder lost |
+| The escrow is emptied | **PROVEN** — the channel's token account no longer exists |
+| The deployed decoder reads a channel it did not create | **PROVEN** — asked about the canonical run's channel `4LtkUA…`, it returned 256 bytes, deposit `50000000`, watermark `6250000`, status `3 Distributed`, and the remainder `43750000` |
+| Malformed requests are refused before anything is signed | **PROVEN** — bad address, missing address and unknown action are each a 400; an address holding a non-channel account is a 422 |
+
+**The bug this found.** On its first run, against the deployment as it stood,
+`POST /api/session { close }` returned **502** with `custom program error: 0xea`
+— which is 234, `voucherWatermarkNotMonotonic`. The close path built the seal
+from `channel.settled`, the amount already on chain, and attached a voucher for
+it. A voucher must *strictly* advance the watermark, so that transaction could
+never succeed: the customer would have watched the meter climb, pressed Close,
+and been shown a 502 at the exact moment the product is supposed to pay out.
+Fixed in `58f8392` by sealing with `hasVoucher: false`, which freezes the
+watermark at the last metered reading — the path the canonical run already used.
+
+Every earlier gate passed while this bug was live, because every earlier gate
+drove the *tooling*, and the tooling sealed correctly. Only a probe of the
+deployed application could have caught it, which is the argument for having
+written one.
+
+**One thing Gate 5 does not prove.** The probe signs the `open` transaction
+itself. That stands in for a wallet's *cryptography* — the format, the slot, the
+signature — and never for its consent screen. No human has approved a
+transaction in a browser.
+
 ### Still not proven
 
 | Claim | Status |
 |---|---|
 | The unused remainder is recoverable via `withdrawPayer` (discriminator 8) | UNVERIFIED — the SEALED `distribute` path already refunds the payer directly, which is what Gate 3 proves. `withdrawPayer` is the *pull* path and is only needed before a full close. Not exercised. |
-| `requestClose` / `seal` (the timeout path, discriminators 5 and 6) | UNVERIFIED — the cooperative `settleAndSeal` path was used instead, so the payer-protection timeout is untested |
+| `requestClose` / `seal` (the timeout path, discriminators 5 and 6) | UNVERIFIED — the cooperative `settleAndSeal` path was used instead, so the payer-protection timeout is untested, in the tooling and in the application alike |
 | `topUp` (discriminator 3) | UNVERIFIED |
-| A distribution plan with actual recipients | UNVERIFIED — every run so far used an empty plan. The `recipient(32) || bps(u16)` layout is unit-tested but has never been executed on chain. |
-| The application deploys to Vercel and reaches devnet RPC | UNVERIFIED |
-| The wallet handshake has been exercised by a human in a browser | UNVERIFIED — the largest remaining gap, and the one path CI structurally cannot cover |
+| A distribution plan with actual recipients | UNVERIFIED — every run so far used an empty plan, including through the application. The `recipient(32) || bps(u16)` layout is unit-tested but has never been executed on chain. |
+| The wallet handshake has been exercised by a human in a browser | UNVERIFIED — the largest remaining gap. Gate 5 stands in for a wallet's cryptography, not for Phantom's consent screen, and the one path CI structurally cannot cover is the one that has never been run. |
 
 ## Two things the verifier got wrong first
 

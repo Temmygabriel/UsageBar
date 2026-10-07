@@ -14,28 +14,47 @@
 
 ## Where we are right now
 
-**All three gates are passed, and so is the canonical run.**
+**All three gates are passed. So is the canonical run. And so is the deployment.**
 
-The canonical run `canonical-usagebar-devnet-001` completed in one uninterrupted
-pass on 2026-10-07, all twelve steps, with an evidence artifact for each and
-every value read back from chain. 50 TEST in, 6.25 TEST metered over five real
-five-second intervals, 43.75 TEST back to the customer, escrow drained to zero.
-The artifacts are committed under [`evidence/canonical-run/`](evidence/canonical-run/).
+**The app is live at <https://usagebar.vercel.app>** and it has been driven end
+to end over HTTPS against Devnet — open, meter, close, pay out — with every
+figure re-read from a Devnet RPC endpoint this repository does not control.
+71 of 71 checks passed. The artifact is committed as
+[`evidence/deployed-app-probe.json`](evidence/deployed-app-probe.json).
+
+That probe earned its keep on the first run. Against the deployment as it stood,
+pressing Close returned a **502** with `custom program error: 0xea` — error 234,
+`voucherWatermarkNotMonotonic`. The close path was attaching a voucher for the
+watermark already on chain, and a voucher must *strictly* advance it, so the
+transaction could never succeed. Every earlier gate passed while that bug was
+live, because every earlier gate drove the tooling and the tooling sealed
+correctly. Fixed, redeployed, re-verified.
+
+Before that, the canonical run `canonical-usagebar-devnet-001` completed in one
+uninterrupted pass on 2026-10-07, all twelve steps, with an evidence artifact for
+each and every value read back from chain. 50 TEST in, 6.25 TEST metered over
+five real five-second intervals, 43.75 TEST back to the customer, escrow drained
+to zero. The artifacts are committed under
+[`evidence/canonical-run/`](evidence/canonical-run/).
 
 Before that, a real payment channel was opened (money in), its settled watermark
 was advanced by cumulative vouchers the operator signed off-chain (the meter
 moves), and it was sealed and paid out (money back out to the right people,
 escrow emptied to zero).
 
-That last step is the product's entire promise, and it is no longer a plan.
+That the whole lifecycle works is no longer a plan, in either the tooling or the
+product.
 
-The application now drives that same lifecycle from a browser. A visitor
-connects their own wallet, the app stocks it with Devnet funds, they sign the
-deposit themselves, the meter advances on signed vouchers, and they close —
-getting the unused remainder back. The customer's key never leaves their
-wallet.
+The application drives that lifecycle from a browser. A visitor connects their
+own wallet, the app stocks it with Devnet funds, they sign the deposit
+themselves, the meter advances on signed vouchers, and they close — getting the
+unused remainder back. The customer's key never leaves their wallet.
 
-Not yet deployed. Not yet run end to end from a browser by a human.
+**What is still missing is one thing: a human has never done that in a browser.**
+The probe stands in for a wallet's cryptography — it signs the `open`
+transaction itself, and the cluster accepted it — but never for Phantom's
+consent screen. That is the last unverified surface and the one CI structurally
+cannot cover.
 
 **CI is green** — typecheck, 94 tests across 4 files, and a production build.
 That is the whole pipeline, and it is the only compiler available here.
@@ -423,6 +442,60 @@ the 162-byte precompile layout, and the signing contract. That check is now a
 committed test (`tests/voucher-encoding.test.js`, 10 cases) and runs on every
 push, so drift fails in CI rather than mid-demo.
 
+### 2026-10-07 — Deployed, and probed until it broke
+
+The app went live on Vercel — project `usagebar`, aliased at
+`https://usagebar.vercel.app`, with the two Devnet keys as encrypted
+server-side environment variables and the pricing numbers pinned explicitly so
+that changing a default in the source cannot silently change what the deployed
+app does.
+
+Then a probe was written to attack our own deployment, because a deployment
+that serves HTML proves nothing about whether its functions hold working keys.
+It found a real bug on its first run within the hour: **close returned a 502**,
+`custom program error: 0xea` — error 234, `voucherWatermarkNotMonotonic`.
+
+The cause is worth recording. `closeChannel` read the watermark already on
+chain, built a voucher for exactly that amount, and attached it to
+`settleAndSeal`. But a voucher must *strictly* advance the watermark, so a
+voucher equal to it can never be accepted. The seal was guaranteed to fail for
+any tab that had metered anything — meaning the demo's climax, the moment the
+product pays out, would have shown a 502 in front of judges.
+
+The fix is `hasVoucher: false`, which freezes the watermark at the last metered
+reading. That is what the canonical run had been doing all along, in
+`tools/devnet-canonical-run.mjs`, and the comment there says why. The
+application had drifted from the tooling that was already proven.
+
+**That is the lesson, and it is the reason the probe exists.** Four gates had
+passed while this bug was live, because all four drove the tooling. The tooling
+was right and the product was wrong, and no amount of re-running the tooling
+would ever have said so.
+
+Two smaller things came out of the same run. A blanket catch in `withConfig`
+turned every handler error into a 502, including asking about an address that
+simply is not a payment channel — now a 422, which is what that answer actually
+is. And two of the probe's own assertions were wrong, both by comparing the
+wrong quantity rather than by finding a fault. They are corrected and the
+correction is in the commit message, because a test that has never been wrong is
+a test nobody has any reason to trust.
+
+After the fix: 71 of 71 checks green against the live deployment, with the
+provider's balance and the customer's balance both read back from chain rather
+than taken from the response. The customer's net cost came out at exactly what
+the meter recorded.
+
+### 2026-10-07 — The channel that could not be reaped, and the one that was
+
+The probe's first run left a channel stranded in `Open` — the close had failed,
+and the customer's key was discarded by design, so nothing could have closed it
+by the normal path. It turned out the server could: `settleAndSeal` needs only
+the *payee's* signature, and the server holds that key. Closing it with the
+fixed code worked first time, and because that channel had been open for twenty
+minutes rather than seconds, it was **reaped** — `slot > open_slot + 1500` was
+finally satisfied. Both outcomes now have a recorded example, which is a better
+ending than tidying the mess away.
+
 ---
 
 ## Failures so far, and what they cost
@@ -571,11 +644,16 @@ shape test for the JSON-array form of a key, which genuinely is distinguishable.
 
 ## Deliberately not done yet
 
-- **No Vercel deployment.** Blocked on the token, not on the work.
+- ~~**No Vercel deployment.**~~ **Done on 2026-10-07.** Live at
+  <https://usagebar.vercel.app>, and probed end to end over HTTPS — see
+  [`evidence/deployed-app-probe.json`](evidence/deployed-app-probe.json).
 - **No mainnet anything.** Devnet only, and the interface says so in the header.
 - **No claim of a browser run.** Until a human has connected a real wallet to a
   deployed build and closed a real tab, the honest status of the wallet
-  handshake is "written and reviewed, never exercised".
+  handshake is "written and reviewed, never exercised". The deployment probe
+  narrows this a great deal — it signs and lands a real `open` transaction
+  against the live server — but it signs it itself, so it stands in for a
+  wallet's cryptography and never for Phantom's consent screen.
 - **No `docs/UX_TEST.md`.** It records a first-viewport test with a stranger, and
   the spec forbids manufacturing answers. It needs a real person who is not us.
 
@@ -594,9 +672,18 @@ free RAM and `npm install` hangs on it. Everything runs in GitHub Actions.
 | Settle with a voucher | Actions → **Devnet** → `settle` |
 | Seal and pay out | Actions → **Devnet** → `close` |
 | The full lifecycle, with evidence | Actions → **Devnet** → `canonical-run` (writes `evidence/canonical-run/` and uploads it as an artifact) |
+| Re-check the evidence against the chain | Actions → **Devnet** → `verify-canonical` (sends no transaction, needs no keypair) |
+| **Probe the live deployment** | `node tools/probe-deployed-app.mjs --out evidence/deployed-app-probe.json` — runs locally, needs no dependencies, and touches only the public API |
 
 The Devnet workflow is manual-trigger only, because it reads private keys from
 repository secrets.
+
+The deployment probe is the one thing here that runs on the local machine, and
+it can, because it needs nothing installed: Node's own `crypto` makes the
+Ed25519 key and signs the single `open` transaction, and a twelve-line base58
+encoder writes the address the faucet pays. It is also the only check that
+attacks the *product* rather than the tooling, which is exactly why it found a
+bug the other five gates had walked past.
 
 The voucher encoding is checked without a network or a key:
 `node --test` is not needed — the checks live in `tests/voucher-encoding.test.js`

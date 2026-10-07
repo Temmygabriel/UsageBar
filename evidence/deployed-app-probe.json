@@ -1,0 +1,46 @@
+{
+  "run": "deployed-app-probe",
+  "writtenAt": "2026-10-07T17:24:28.278Z",
+  "applicationUrl": "https://usagebar.vercel.app",
+  "rpcUrl": "https://api.devnet.solana.com",
+  "network": "devnet",
+  "observed": {
+    "faucet": {
+      "solBefore": "0",
+      "solAfter": "50000000",
+      "tokens": "100000000"
+    },
+    "flow": {
+      "channel": "BFFqXPygJsBkGWQoGGowR4qgAtuSuRYnAsegp5oeT1Vt",
+      "openSignature": "NqVoKGt3ymR4EviCE5VSfPpoEUAKBymgKKRfmvkATibjuxpS5u83LSBqdqnF6HbRGxZJp66onHDTjSLk9EqvnX8",
+      "openSlot": "508529003",
+      "salt": "1791393842991",
+      "deposit": "50000000",
+      "meterReadings": [
+        {
+          "round": 1,
+          "settled": "1250000",
+          "signature": "5C6mbcyGvtEaWEEJAv6sVVzyKUcGSwtUxZjVXhYtNu7CDSbt6kDvHFtPsRVFy4N2d1gyTL7yH54APWLKfxkR4wbg"
+        },
+        {
+          "round": 2,
+          "settled": "2500000",
+          "signature": "63DCn1GjnmSrhiHUjFGYqMHT5H9K73nu3TjVWijCpD5ToCvvHK7ak9xYw5GH59Fn1fDqtFLuNUh6HM8PcaXnYUvL"
+        }
+      ],
+      "settled": "2500000",
+      "paidToProvider": "2500000",
+      "returnedToPayer": "47500000",
+      "sealSignature": "2qKDtQPMKWj7nYG1K66bf82LXSfdn9Ysw1kA4ZjMPfV3gaAoz9wY4P5htKxoEMVw9DjZYVAfAweXwZ2LWQKqC3RM",
+      "distributeSignature": "5fLEXCyemBHEv7DxTXWR2ZXUDo4PxD1euREW9ekrGRQNQtB61cRDD9DNJbGHS9gUvnYidvawnCpSJyC7f1WVCref",
+      "channelReaped": false
+    }
+  },
+  "checks": {
+    "passed": 71,
+    "total": 71
+  },
+  "failures": [],
+  "method": "Every transaction was submitted through the deployed application's HTTP API except `open`, which the application returns unsigned and this script signs, as a wallet would. Every balance and account value was then re-read from a devnet RPC endpoint that this repository does not control, using raw JSON-RPC rather than the application's own client. The customer wallet is generated per run and its private key is never written to disk.",
+  "doesNotProve": "The wallet-standard handshake in a browser. This script stands in for a wallet's cryptography, never for its consent screen, and no human has approved a transaction."
+}

@@ -1,0 +1,66 @@
+name: Probe deployment
+
+# Attacks our own deployment: drives https://usagebar.vercel.app over HTTPS and
+# then checks every number it reports against a devnet RPC endpoint this
+# repository does not control.
+#
+# WHY THIS IS NOT IN CI
+#
+# It is not a unit test. It spends real (valueless) devnet funds, it depends on
+# a third-party host being up, and the faucet route is rate limited per caller —
+# so running it on every push would turn a working deployment into a flaky
+# build. It is manual, and it is expected to be run when a claim about the
+# deployment needs re-checking rather than on every commit.
+#
+# It needs NO SECRETS. The faucet, the meter and the payout are all server-signed
+# by the deployment; the only thing a client must sign is `open`, and the script
+# generates a throwaway key in memory to do it. There is deliberately no
+# `secrets:` reference in this file — a reviewer can run it on a fork.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Deployment to probe"
+        required: false
+        default: "https://usagebar.vercel.app"
+      channel:
+        description: "A channel to read back (default: the canonical run's)"
+        required: false
+        default: "4LtkUAsruLTTi9xzwy6Zd67U8uz8d8sX72gyYsKjPz4S"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: drive the deployment end to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # No `npm ci`: the probe imports nothing outside `node:crypto`, `node:fs`
+      # and the global `fetch`. That is the point of it — it can verify the
+      # deployment without installing the project it is verifying.
+      - name: Probe
+        run: |
+          node tools/probe-deployed-app.mjs \
+            --url "${{ inputs.url }}" \
+            --channel "${{ inputs.channel }}" \
+            --out evidence/deployed-app-probe.json
+
+      - name: Upload what it observed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-app-probe
+          path: evidence/deployed-app-probe.json
+          if-no-files-found: warn

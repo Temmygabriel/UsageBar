@@ -731,8 +731,8 @@ export interface CloseResult {
  *
  * Two instructions, and they are separate for a reason:
  *
- *   1. `settleAndSeal` commits a final voucher and locks the watermark. It
- *      requires the PAYEE's signature — this is a cooperative close, not a
+ *   1. `settleAndSeal` locks the watermark at whatever the meter last recorded.
+ *      It requires the PAYEE's signature — this is a cooperative close, not a
  *      permissionless one — which is why the provider key lives on the server.
  *      The customer does not sign here, and does not need to: their protection
  *      is structural rather than a second signature. A voucher can never exceed
@@ -771,34 +771,29 @@ export async function closeChannel(
     );
   }
 
-  const operatorSeed = config.operatorSecretKey.subarray(0, 32);
   const payee = await signerFor(config.operatorSecretKey);
   const payer = await signerFor(config.payerSecretKey);
   const mint = address(config.mint);
 
-  // How much was actually used is read, not assumed. If the meter never moved
-  // the final watermark is zero, which is a legitimate close: seal with no
-  // voucher rather than signing one that does not advance.
+  // How much was actually used is read, not assumed.
   const finalCumulative = channel.settled;
 
+  // NO VOUCHER ON THE SEAL, and this is not an optimisation — attaching one is
+  // the obvious-looking mistake and it fails on chain.
+  //
+  // A voucher must *strictly* advance the watermark; the program rejects one
+  // that merely equals it, with error 234 (`voucherWatermarkNotMonotonic`). The
+  // only amount the server knows at close time is the one already recorded, so
+  // a voucher built from it can never satisfy that rule. Nor can a voucher be
+  // invented from `settled + something`: the "something" would be a number of
+  // seconds between the last meter tick and this request, which nobody measured
+  // and which would bill the customer for an interval no one observed.
+  //
+  // `hasVoucher: false` therefore freezes the watermark at the last metered
+  // reading. That is the fair rule — the customer pays for the time the meter
+  // actually recorded and the gap before the close is free — and it is the path
+  // the canonical run used.
   const sealInstructions: (Instruction & InstructionWithSigners)[] = [];
-  if (finalCumulative > 0n) {
-    const voucherPayload = buildVoucherPayload(
-      addressEncoder,
-      channelId,
-      finalCumulative,
-      0n,
-    );
-    const { signature: voucherSignature, publicKey } = await signVoucher(
-      operatorSeed,
-      voucherPayload,
-    );
-    sealInstructions.push({
-      programAddress: address(ED25519_PRECOMPILE),
-      accounts: [],
-      data: buildEd25519PrecompileData(publicKey, voucherSignature, voucherPayload),
-    });
-  }
 
   // The accounts are built into a typed variable rather than written inline.
   // Writing them inline makes them a *fresh* object literal, and a fresh literal
@@ -816,8 +811,9 @@ export async function closeChannel(
   sealInstructions.push({
     programAddress: PROGRAM,
     accounts: sealAccounts,
-    // The option byte tracks whether a precompile precedes this instruction.
-    data: encodeSettleAndSealData(finalCumulative > 0n),
+    // False: no precompile precedes this instruction, so the watermark stands
+    // at the last metered reading rather than being advanced by the seal.
+    data: encodeSettleAndSealData(false),
   });
 
   const { value: sealBlockhash } = await rpc.getLatestBlockhash().send();

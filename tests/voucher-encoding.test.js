@@ -24,6 +24,7 @@ import {
   ATA_CREATE_IDEMPOTENT,
   BPS_DENOMINATOR,
   CANONICAL_IX_DATA_LEN,
+  CHANNEL_ERRORS,
   DISCRIMINATOR,
   MAX_DISTRIBUTION_RECIPIENTS,
   MESSAGE_OFFSET,
@@ -32,6 +33,7 @@ import {
   SYSTEM_TRANSFER_DISCRIMINATOR,
   TOKEN_TRANSFER_DISCRIMINATOR,
   VOUCHER_PAYLOAD_SIZE,
+  annotateChannelErrors,
   buildCreateAtaIdempotentInstruction,
   buildEd25519PrecompileData,
   buildSystemTransferInstruction,
@@ -595,5 +597,75 @@ describe("readTokenAccountAmount", () => {
 
   it("refuses a buffer too short to hold an amount", () => {
     expect(() => readTokenAccountAmount(new Uint8Array(64))).toThrow(/too short/);
+  });
+});
+
+describe("CHANNEL_ERRORS", () => {
+  it("names the code the grace-period guard actually returned", () => {
+    // The one entry in this table with a chain receipt behind it. Extended-paths
+    // scenario B called `seal` before the grace period had elapsed and the
+    // cluster answered `custom program error: 0x899`; 0x899 is 2201, and
+    // `errors.rs` puts `SealGracePeriodNotElapsed` under `// ix seal`.
+    expect(CHANNEL_ERRORS[2201]).toBe("SealGracePeriodNotElapsed");
+    expect(CHANNEL_ERRORS[0x899]).toBe("SealGracePeriodNotElapsed");
+  });
+
+  it("carries the distribution codes the encoder's own guards cite", () => {
+    // `encodeDistributionPreimage` throws naming these four, so a wrong name
+    // here is a wrong error message at the call site, not just a wrong lookup.
+    expect(CHANNEL_ERRORS[260]).toBe("InvalidRecipientCount");
+    expect(CHANNEL_ERRORS[261]).toBe("InvalidSplitConfig");
+    expect(CHANNEL_ERRORS[263]).toBe("DuplicateRecipient");
+  });
+
+  it("cites codes by their decimal number, wherever they appear", () => {
+    // Every key has to be a plain integer string. A hex key would still be a
+    // valid object key and would silently never match the decimal lookup.
+    for (const key of Object.keys(CHANNEL_ERRORS)) {
+      expect(key).toMatch(/^\d+$/);
+    }
+  });
+});
+
+describe("annotateChannelErrors", () => {
+  it("appends the decimal code and the name", () => {
+    expect(annotateChannelErrors("custom program error: 0x899")).toBe(
+      "custom program error: 0x899 (2201, SealGracePeriodNotElapsed)",
+    );
+  });
+
+  it("leaves a code it does not know exactly as it found it", () => {
+    // The point of the table being a subset. Inventing a name for a code nobody
+    // has read the source for is worse than printing bare hex, because bare hex
+    // reads as "unknown" and a wrong name reads as "known".
+    const text = "custom program error: 0x7fff";
+    expect(annotateChannelErrors(text)).toBe(text);
+  });
+
+  it("leaves text with no program error untouched", () => {
+    const text = "WebSocket failed to connect";
+    expect(annotateChannelErrors(text)).toBe(text);
+  });
+
+  it("annotates every code in a block, not just the first", () => {
+    const annotated = annotateChannelErrors("custom program error: 0xc8\ncustom program error: 0x899");
+    expect(annotated).toContain("(200, DepositMustBeNonZero)");
+    expect(annotated).toContain("(2201, SealGracePeriodNotElapsed)");
+  });
+
+  it("is idempotent, so a re-described error does not stack annotations", () => {
+    // `land()` merges a transport failure with a chain-reported one and the
+    // result is described again on the way into the evidence file.
+    const once = annotateChannelErrors("custom program error: 0x899");
+    expect(annotateChannelErrors(once)).toBe(once);
+    expect(annotateChannelErrors(annotateChannelErrors(once))).toBe(once);
+  });
+
+  it("accepts uppercase hex digits", () => {
+    // The prefix is always lowercase in the runtime's own message, but the hex
+    // digits are not guaranteed to be: `0xC8` is the same code as `0xc8`.
+    expect(annotateChannelErrors("custom program error: 0xC8")).toBe(
+      "custom program error: 0xC8 (200, DepositMustBeNonZero)",
+    );
   });
 });

@@ -382,9 +382,14 @@ export const TREASURY_OWNER_SENTINEL_HEX =
  */
 export function encodeDistributionPreimage(addressEncoder, entries) {
   if (entries.length > MAX_DISTRIBUTION_RECIPIENTS) {
+    // The enum carries three count errors with the same upstream message
+    // ("num_recipients outside [0, 32]"): 260 `InvalidRecipientCount`,
+    // 262 `DistributionPartsOverflow` and 264 `DistributionAmountOverflow`.
+    // Which one a given guard returns is not established here, so the name
+    // below is the one whose name matches its description, not a traced fact.
     throw new Error(
       `at most ${MAX_DISTRIBUTION_RECIPIENTS} recipients are allowed ` +
-        `-> error 264 (invalidRecipientCount)`,
+        `-> error 260 (InvalidRecipientCount)`,
     );
   }
 
@@ -398,7 +403,7 @@ export function encodeDistributionPreimage(addressEncoder, entries) {
 
   for (const entry of entries) {
     if (entry.bps === 0) {
-      throw new Error("a recipient share of zero basis points is rejected -> error 261");
+      throw new Error("a recipient share of zero basis points is rejected -> error 261 (InvalidSplitConfig)");
     }
     bpsSum += entry.bps;
     buffer.set(addressEncoder.encode(entry.recipient), offset);
@@ -407,13 +412,14 @@ export function encodeDistributionPreimage(addressEncoder, entries) {
     offset += 2;
 
     const key = String(entry.recipient);
-    if (seen.has(key)) throw new Error(`duplicate recipient ${key} -> error 262`);
+    if (seen.has(key)) throw new Error(`duplicate recipient ${key} -> error 263 (DuplicateRecipient)`);
     seen.add(key);
   }
 
   if (bpsSum > BPS_DENOMINATOR) {
     throw new Error(
-      `recipient shares total ${bpsSum} bps, over the ${BPS_DENOMINATOR} maximum -> error 261`,
+      `recipient shares total ${bpsSum} bps, over the ${BPS_DENOMINATOR} maximum -> error 261 ` +
+        "(InvalidSplitConfig)",
     );
   }
 
@@ -436,6 +442,92 @@ export function encodeDistributeData(addressEncoder, entries) {
   data[0] = DISCRIMINATOR.distribute;
   data.set(preimage, 1);
   return data;
+}
+
+// ---------------------------------------------------------------------------
+// Error codes
+// ---------------------------------------------------------------------------
+
+/**
+ * The program's own error enum, transcribed from
+ * `program/payment_channels/src/errors.rs` at `solana-foundation/payment-channels`.
+ *
+ * A SUBSET, deliberately. It carries the codes this repository's tools can
+ * actually provoke or that its documentation cites, and nothing else — a
+ * half-remembered entry for a code nobody has seen would turn a clear
+ * `custom program error: 0x899` into a confident, wrong name.
+ *
+ * That specific example is why this exists. `seal` was attempted before the
+ * grace period had elapsed and the transaction failed with `0x899` — 2201,
+ * `SealGracePeriodNotElapsed`, "Grace period has not elapsed yet". The raw hex
+ * is recorded in the evidence either way, but a reader should not have to hold
+ * a decimal conversion and a source file in their head to find that out.
+ */
+export const CHANNEL_ERRORS = {
+  200: "DepositMustBeNonZero",
+  201: "GracePeriodMustBeNonZero",
+  232: "VoucherChannelMismatch",
+  233: "VoucherExpired",
+  234: "VoucherWatermarkNotMonotonic",
+  235: "VoucherOverDeposit",
+  236: "VoucherMessageMismatch (reserved; never emitted)",
+  237: "VoucherSignerMismatch",
+  238: "VoucherBadMagic",
+  260: "InvalidRecipientCount",
+  261: "InvalidSplitConfig",
+  262: "DistributionPartsOverflow",
+  263: "DuplicateRecipient",
+  264: "DistributionAmountOverflow",
+  265: "DistributionPreimageLengthOverflow",
+  50: "ChannelAccountMismatch",
+  51: "InvalidChannelTokenAccount",
+  53: "MintAccountMismatch",
+  57: "PayerAccountMismatch",
+  58: "InvalidPayerTokenAccount",
+  60: "PayeeAccountMismatch",
+  61: "InvalidPayeeTokenAccount",
+  2003: "OpenSlotOutOfWindow",
+  2100: "TopUpDepositOverflow",
+  2200: "SealDeadlineOverflow",
+  2201: "SealGracePeriodNotElapsed",
+  2300: "PayerAlreadyWithdrawn",
+  2301: "RefundCalculationOverflow",
+  2400: "ChannelNotDistributable",
+  2401: "TreasuryAccountMismatch",
+  2402: "InvalidTreasuryTokenAccount",
+  2403: "InvalidTreasuryTokenExtensions",
+  2404: "RecipientAccountMismatch",
+  2405: "InvalidRecipientTokenAccount",
+  2406: "InvalidRecipientTokenExtensions",
+  2407: "InvalidDistributionHash",
+  2408: "NothingToDistribute",
+  2409: "RecipientAccountCountMismatch",
+  2410: "DistributePoolOverflow",
+  2411: "DistributeBalanceCalculationOverflow",
+  2412: "RentPayerBalanceOverflow",
+  2413: "DistributeTransferQueueOverflow",
+  2414: "ChannelCloseTooEarly",
+};
+
+/**
+ * Rewrite every `custom program error: 0x…` in a block of text to carry the
+ * decimal code and its name. Anything not in the table is left exactly as it
+ * was, which is the honest outcome for a code this repository has not read.
+ *
+ * Idempotent: the lookahead skips a code that already carries its annotation,
+ * so error text that passes through here twice — a transport failure that is
+ * merged with a chain-reported one, then described again — does not accumulate
+ * a second `(2201, …)`.
+ */
+export function annotateChannelErrors(text) {
+  return String(text).replace(
+    /custom program error: 0x([0-9a-fA-F]+)(?! \(\d+, )/g,
+    (whole, hex) => {
+      const code = Number.parseInt(hex, 16);
+      const name = CHANNEL_ERRORS[code];
+      return name ? `${whole} (${code}, ${name})` : whole;
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------

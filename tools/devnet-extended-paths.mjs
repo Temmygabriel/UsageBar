@@ -67,6 +67,7 @@ import { join } from "node:path";
 
 import {
   BPS_DENOMINATOR,
+  CHANNEL_ERRORS,
   CHANNEL_LEN,
   CHANNEL_STATUS,
   DEVNET_TREASURY_OWNER,
@@ -74,6 +75,7 @@ import {
   ED25519_PRECOMPILE,
   INSTRUCTIONS_SYSVAR,
   PAYMENT_CHANNELS_PROGRAM,
+  annotateChannelErrors,
   buildCreateAtaIdempotentInstruction,
   buildEd25519PrecompileData,
   buildVoucherPayload,
@@ -266,7 +268,25 @@ function describeError(error) {
   parts.push(error instanceof Error ? error.message : String(error));
   const context = error && typeof error === "object" ? error.context : undefined;
   if (context && Array.isArray(context.logs)) parts.push(context.logs.join("\n"));
-  return parts.join("\n");
+  // The program answers with hex. Nothing here should make a reader convert it
+  // in their head to find out that `0x899` is the grace period.
+  return annotateChannelErrors(parts.join("\n"));
+}
+
+/**
+ * Render the error object the cluster stores against a failed transaction.
+ *
+ * `{"InstructionError":[1,{"Custom":2201}]}` is precise but asks the reader to
+ * know that `Custom` is the program's own error code — and, worse, to notice
+ * that this 2201 is the same number the logs write as `0x899`. The JSON is kept
+ * verbatim and the name is appended beside it; when the code is not one this
+ * repository has read, only the JSON is written.
+ */
+function describeChainError(err) {
+  const json = JSON.stringify(err);
+  const custom = Array.isArray(err?.InstructionError) ? err.InstructionError[1]?.Custom : undefined;
+  const name = typeof custom === "number" ? CHANNEL_ERRORS[custom] : undefined;
+  return name ? `${json} (${custom}, ${name})` : json;
 }
 
 // ---------------------------------------------------------------------------
@@ -398,7 +418,12 @@ async function chainOutcome(signature, label) {
   // Landed and rejected by the program. This is a better answer than the
   // transport's text: it carries the program's own error, not a simulation
   // summary that reads the same for every mistake.
-  if (status.err) return { settled: true, error: JSON.stringify(status.err) };
+  //
+  // The shape is `{"InstructionError":[1,{"Custom":2201}]}` — already decimal,
+  // where `logs` carries bare hex. Both are annotated, so a reader comparing
+  // the two does not have to notice that they are the same number written two
+  // different ways.
+  if (status.err) return { settled: true, error: describeChainError(status.err) };
   const done = status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized";
   return { settled: done };
 }

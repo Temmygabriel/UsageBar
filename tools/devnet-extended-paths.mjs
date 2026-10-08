@@ -273,14 +273,73 @@ function describeError(error) {
 // Chain helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * `api.devnet.solana.com` is a shared public endpoint and it rate limits
+ * (HTTP 429). A first run of this script died there — after the plan had been
+ * committed, the deposit topped up and the channel sealed, with both scenarios
+ * reporting `HTTP error (429): Too Many Requests` and neither one reaching the
+ * instruction it was written to test.
+ *
+ * So every RPC call goes through here. The retry is deliberately narrow: it
+ * fires on a rate limit and on nothing else. Retrying a program error would
+ * resend a transaction that already failed, burn fifteen seconds of backoff,
+ * and — worse — turn a genuine on-chain rejection into a slow one, which is
+ * exactly the signal the early-`seal` check depends on reading quickly.
+ */
+const RATE_LIMITED = /429|too many requests|rate.?limit/i;
+
+async function retry(description, call, attempts = 5) {
+  let delayMs = 1000;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await call();
+    } catch (error) {
+      if (attempt >= attempts || !RATE_LIMITED.test(describeError(error))) throw error;
+      console.log(
+        `    .. ${description} is rate limited; retrying in ${delayMs}ms ` +
+          `(attempt ${attempt + 1} of ${attempts})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      delayMs *= 2;
+    }
+  }
+}
+
+const getSlot = () => retry("getSlot", () => rpc.getSlot().send());
+const getLatestBlockhash = () => retry("getLatestBlockhash", () => rpc.getLatestBlockhash().send());
+const getBalance = (account) => retry("getBalance", () => rpc.getBalance(account).send());
+
+/**
+ * One `getMultipleAccounts` for the whole set rather than one `getAccountInfo`
+ * per account. Scenario A watches six token accounts before and after the
+ * distribution; read singly that is twelve requests in a burst, which is a
+ * large part of what provoked the 429 in the first place.
+ */
+async function readTokenBalances(accounts) {
+  if (accounts.length === 0) return [];
+  const info = await retry("getMultipleAccounts", () =>
+    rpc.getMultipleAccounts(accounts, { encoding: "base64" }).send(),
+  );
+  return info.value.map((entry) =>
+    entry === null ? null : Buffer.from(entry.data[0], "base64").readBigUInt64LE(64),
+  );
+}
+
+/** SPL token balance, read from the account so a missing one is null. */
 async function readTokenBalance(tokenAccount) {
-  const info = await rpc.getAccountInfo(tokenAccount, { encoding: "base64" }).send();
-  if (info.value === null) return null;
-  return Buffer.from(info.value.data[0], "base64").readBigUInt64LE(64);
+  return (await readTokenBalances([tokenAccount]))[0];
+}
+
+/** Every watched balance at one moment, keyed by the name it was watched under. */
+async function snapshotBalances(watched) {
+  const values = await readTokenBalances(watched.map((entry) => entry.account));
+  return Object.fromEntries(watched.map((entry, index) => [entry.name, values[index]]));
 }
 
 async function readChannelAccount(channelAddress) {
-  const info = await rpc.getAccountInfo(channelAddress, { encoding: "base64" }).send();
+  const info = await retry("getAccountInfo", () =>
+    rpc.getAccountInfo(channelAddress, { encoding: "base64" }).send(),
+  );
   if (info.value === null) return null;
   return {
     lamports: info.value.lamports,
@@ -308,7 +367,7 @@ async function readChannel(channelAddress, label) {
  * not — because "the program refused this" is itself the thing being proven.
  */
 async function send(instructions, { label, expectFailure = false } = {}) {
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+  const { value: latestBlockhash } = await getLatestBlockhash();
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     (m) => setTransactionMessageFeePayerSigner(payer, m),
@@ -319,7 +378,10 @@ async function send(instructions, { label, expectFailure = false } = {}) {
   const signature = getSignatureFromTransaction(signed);
 
   try {
-    await sendAndConfirm(signed, { commitment: "confirmed" });
+    // Resending the same signed transaction on a rate limit is safe: it carries
+    // the same signature, so the cluster deduplicates it rather than charging
+    // the fee twice.
+    await retry(label, () => sendAndConfirm(signed, { commitment: "confirmed" }));
     if (expectFailure) {
       check(false, `${label}: the transaction was accepted, but it was expected to be rejected`);
     }
@@ -404,7 +466,7 @@ async function meterOnce({ channelAddress, ratePerSecond, label }) {
 
 /** Open a channel and return everything the later steps need to address it. */
 async function openChannel({ label, saltOffset = 0, gracePeriod, deposit, recipients = [] }) {
-  const openSlot = BigInt(await rpc.getSlot().send());
+  const openSlot = BigInt(await getSlot());
   const salt = BigInt(Date.now() + saltOffset);
 
   const [channelAddress, channelBump] = await getProgramDerivedAddress({
@@ -732,16 +794,18 @@ async function scenarioSplit() {
 
   log("  A5: distribute (revealing the plan)");
 
-  const balancesBefore = {
-    payer: await readTokenBalance(payerTokenAccount),
-    channel: await readTokenBalance(opened.channelTokenAccount),
-    payee: await readTokenBalance(payeeTokenAccount),
-    treasury: await readTokenBalance(treasuryTokenAccount),
-    recipients: {},
-  };
-  for (const entry of recipients) {
-    balancesBefore.recipients[entry.name] = await readTokenBalance(entry.ata);
-  }
+  // Everything that receives a share, watched under one name each. The payee's
+  // is keyed `payee` rather than by its address so the checks below read as the
+  // sentence they are making.
+  const watched = [
+    { name: "payer", account: payerTokenAccount },
+    { name: "escrow", account: opened.channelTokenAccount },
+    { name: "payee", account: payeeTokenAccount },
+    { name: "treasury", account: treasuryTokenAccount },
+    ...recipients.map((entry) => ({ name: entry.name, account: entry.ata })),
+  ];
+
+  const balancesBefore = await snapshotBalances(watched);
 
   const distributeData = encodeDistributeData(
     addressEncoder,
@@ -789,16 +853,7 @@ async function scenarioSplit() {
     label: "split: distribute",
   });
 
-  const balancesAfter = {
-    payer: await readTokenBalance(payerTokenAccount),
-    channel: await readTokenBalance(opened.channelTokenAccount),
-    payee: await readTokenBalance(payeeTokenAccount),
-    treasury: await readTokenBalance(treasuryTokenAccount),
-    recipients: {},
-  };
-  for (const entry of recipients) {
-    balancesAfter.recipients[entry.name] = await readTokenBalance(entry.ata);
-  }
+  const balancesAfter = await snapshotBalances(watched);
 
   // What the program documents, recomputed here from the channel's own numbers.
   // The payee's share is the implicit remainder, so it gets its own basis-point
@@ -811,63 +866,60 @@ async function scenarioSplit() {
   expected.payee = shareOf(settled, payeeBps) - shareOf(payoutWatermark, payeeBps);
   expected.payer = sealed.channel.deposit - settled;
   expected.treasury =
-    (balancesBefore.channel ?? 0n) -
-    Object.values(expected).reduce((total, value) => total + value, 0n);
+    (balancesBefore.escrow ?? 0n) - Object.values(expected).reduce((total, value) => total + value, 0n);
+
+  /** What actually arrived, as a delta on what was observed before. */
+  const received = Object.fromEntries(
+    watched.map((entry) => [entry.name, (balancesAfter[entry.name] ?? 0n) - (balancesBefore[entry.name] ?? 0n)]),
+  );
 
   log(`    settled        : ${format(settled)}`);
   log("");
   for (const entry of recipients) {
-    const received = (balancesAfter.recipients[entry.name] ?? 0n) - (balancesBefore.recipients[entry.name] ?? 0n);
-    log(`    ${entry.name.padEnd(14)} : ${format(received)}   (${entry.bps} bps, expected ${format(expected[entry.name])})`);
+    log(
+      `    ${entry.name.padEnd(14)} : ${format(received[entry.name])}   ` +
+        `(${entry.bps} bps, expected ${format(expected[entry.name])})`,
+    );
     check(
-      received === expected[entry.name],
-      `${entry.name} received ${received}, expected ${expected[entry.name]}`,
+      received[entry.name] === expected[entry.name],
+      `${entry.name} received ${received[entry.name]}, expected ${expected[entry.name]}`,
     );
   }
 
-  const payeeReceived = (balancesAfter.payee ?? 0n) - (balancesBefore.payee ?? 0n);
-  const payerReceived = (balancesAfter.payer ?? 0n) - (balancesBefore.payer ?? 0n);
-  const treasuryReceived = (balancesAfter.treasury ?? 0n) - (balancesBefore.treasury ?? 0n);
-
-  log(`    payee          : ${format(payeeReceived)}   (implicit ${payeeBps} bps, expected ${format(expected.payee)})`);
-  log(`    payer refund   : ${format(payerReceived)}   (expected ${format(expected.payer)})`);
-  log(`    treasury dust  : ${format(treasuryReceived)}   (expected ${format(expected.treasury)})`);
-  log(`    escrow after   : ${balancesAfter.channel === null ? "(closed)" : format(balancesAfter.channel)}`);
+  log(
+    `    payee          : ${format(received.payee)}   ` +
+      `(implicit ${payeeBps} bps, expected ${format(expected.payee)})`,
+  );
+  log(`    payer refund   : ${format(received.payer)}   (expected ${format(expected.payer)})`);
+  log(`    treasury dust  : ${format(received.treasury)}   (expected ${format(expected.treasury)})`);
+  log(`    escrow after   : ${balancesAfter.escrow === null ? "(closed)" : format(balancesAfter.escrow)}`);
   log(`    tx             : ${distribute.signature}`);
   log("");
 
-  check(payeeReceived === expected.payee, `the payee received ${payeeReceived}, expected ${expected.payee}`);
-  check(payerReceived === expected.payer, `the payer received ${payerReceived}, expected ${expected.payer}`);
+  check(received.payee === expected.payee, `the payee received ${received.payee}, expected ${expected.payee}`);
+  check(received.payer === expected.payer, `the payer received ${received.payer}, expected ${expected.payer}`);
   check(
-    treasuryReceived === expected.treasury,
-    `the treasury received ${treasuryReceived}, expected ${expected.treasury}`,
+    received.treasury === expected.treasury,
+    `the treasury received ${received.treasury}, expected ${expected.treasury}`,
   );
 
-  // Conservation, read from six separate accounts rather than computed: every
-  // token that arrived in a recipient, in the payee's account, back to the
-  // payer, or in the treasury must equal the tokens that left the escrow. The
-  // treasury's expected value above is derived, so it cannot fail a check
-  // against itself — but this compares five independently observed deltas
-  // against a sixth account's change, which is a different claim.
-  const totalReceived =
-    recipients.reduce(
-      (total, entry) =>
-        total + ((balancesAfter.recipients[entry.name] ?? 0n) - (balancesBefore.recipients[entry.name] ?? 0n)),
-      0n,
-    ) +
-    payeeReceived +
-    payerReceived +
-    treasuryReceived;
-  const escrowDrained = (balancesBefore.channel ?? 0n) - (balancesAfter.channel ?? 0n);
+  // Conservation, read rather than computed: every token that arrived in a
+  // recipient, in the payee's account, back to the payer, or in the treasury
+  // must equal the tokens that left the escrow. The treasury's expected value
+  // above is derived from the escrow, so a check against it would be checking
+  // the arithmetic against itself — this compares five independently observed
+  // deltas against a sixth account's change, which is a different claim.
+  const totalReceived = Object.values(received).reduce((total, value) => total + value, 0n);
+  const escrowDrained = (balancesBefore.escrow ?? 0n) - (balancesAfter.escrow ?? 0n);
 
   check(
     totalReceived === escrowDrained,
-    `${totalReceived} atomic units arrived across the five payout accounts, but the escrow only fell ` +
+    `${totalReceived} atomic units arrived across the payout accounts, but the escrow only fell ` +
       `by ${escrowDrained}`,
   );
   check(
-    (balancesAfter.channel ?? 0n) === 0n,
-    `the escrow still holds ${balancesAfter.channel}; it should have been drained and closed`,
+    (balancesAfter.escrow ?? 0n) === 0n,
+    `the escrow still holds ${balancesAfter.escrow}; it should have been drained and closed`,
   );
 
   writeEvidence("03-split-distributed.json", {
@@ -888,18 +940,10 @@ async function scenarioSplit() {
       settled: settled.toString(),
       payoutWatermark: payoutWatermark.toString(),
       recipientOrder: recipients.map((entry) => ({ name: entry.name, ata: entry.ata, bps: entry.bps })),
-      received: {
-        ...Object.fromEntries(
-          recipients.map((entry) => [
-            entry.name,
-            ((balancesAfter.recipients[entry.name] ?? 0n) - (balancesBefore.recipients[entry.name] ?? 0n)).toString(),
-          ]),
-        ),
-        payee: payeeReceived.toString(),
-        payer: payerReceived.toString(),
-        treasury: treasuryReceived.toString(),
-      },
-      escrowBalanceAfter: balancesAfter.channel?.toString() ?? null,
+      received: Object.fromEntries(
+        Object.entries(received).map(([key, value]) => [key, value.toString()]),
+      ),
+      escrowBalanceAfter: balancesAfter.escrow?.toString() ?? null,
     },
     expected: {
       planRevealedSha256: sealed.channel.distributionHash,
@@ -916,7 +960,12 @@ async function scenarioSplit() {
       "split, not the product's payout path",
   });
 
-  return { channel: opened.channelAddress, settled, expected, received: { payeeReceived, payerReceived, treasuryReceived } };
+  return {
+    channel: opened.channelAddress,
+    settled,
+    expected,
+    received: Object.fromEntries(Object.entries(received).map(([key, value]) => [key, value.toString()])),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1249,12 +1298,14 @@ async function scenarioTimeout() {
 
   log("  B8: distribute — the payer must NOT be refunded a second time");
 
-  const balancesBefore = {
-    payer: await readTokenBalance(payerTokenAccount),
-    channel: await readTokenBalance(opened.channelTokenAccount),
-    payee: await readTokenBalance(payeeTokenAccount),
-    treasury: await readTokenBalance(treasuryTokenAccount),
-  };
+  const watched = [
+    { name: "payer", account: payerTokenAccount },
+    { name: "escrow", account: opened.channelTokenAccount },
+    { name: "payee", account: payeeTokenAccount },
+    { name: "treasury", account: treasuryTokenAccount },
+  ];
+
+  const balancesBefore = await snapshotBalances(watched);
 
   // Empty plan: this channel was opened without recipients, so the reveal is
   // the four zero bytes of a zero count.
@@ -1291,12 +1342,7 @@ async function scenarioTimeout() {
     { label: "timeout: distribute" },
   );
 
-  const balancesAfter = {
-    payer: await readTokenBalance(payerTokenAccount),
-    channel: await readTokenBalance(opened.channelTokenAccount),
-    payee: await readTokenBalance(payeeTokenAccount),
-    treasury: await readTokenBalance(treasuryTokenAccount),
-  };
+  const balancesAfter = await snapshotBalances(watched);
 
   const payeeReceived = (balancesAfter.payee ?? 0n) - (balancesBefore.payee ?? 0n);
   // THE CHECK THIS SCENARIO EXISTS FOR. `distribute` refunds the payer on its
@@ -1312,7 +1358,7 @@ async function scenarioTimeout() {
   log(`    payee          : ${format(payeeReceived)}   (expected ${format(expectedPayee)})`);
   log(`    payer AGAIN    : ${format(payerReceivedAgain)}   (expected ${format(0n)})`);
   log(`    treasury dust  : ${format(treasuryReceived)}`);
-  log(`    escrow after   : ${balancesAfter.channel === null ? "(closed)" : format(balancesAfter.channel)}`);
+  log(`    escrow after   : ${balancesAfter.escrow === null ? "(closed)" : format(balancesAfter.escrow)}`);
   log(`    tx             : ${distribute.signature}`);
   log("");
 
@@ -1323,8 +1369,8 @@ async function scenarioTimeout() {
       "withdrawPayer had already refunded them",
   );
   check(
-    (balancesAfter.channel ?? 0n) === 0n,
-    `the escrow still holds ${balancesAfter.channel}; it should have been drained and closed`,
+    (balancesAfter.escrow ?? 0n) === 0n,
+    `the escrow still holds ${balancesAfter.escrow}; it should have been drained and closed`,
   );
 
   // The channel PDA is deallocated when `distribute` runs more than 1500 slots
@@ -1356,7 +1402,7 @@ async function scenarioTimeout() {
       payeeReceived: payeeReceived.toString(),
       payerReceived: payerReceivedAgain.toString(),
       treasuryReceived: treasuryReceived.toString(),
-      escrowBalanceAfter: balancesAfter.channel?.toString() ?? null,
+      escrowBalanceAfter: balancesAfter.escrow?.toString() ?? null,
     },
     expected: {
       payeeReceived: expectedPayee.toString(),
@@ -1394,7 +1440,7 @@ log(`  provider       : ${operatorAddress}`);
 log(`  mint           : ${TEST_MINT}`);
 log("");
 
-const feePayerLamports = await rpc.getBalance(payer.address).send();
+const feePayerLamports = await getBalance(payer.address);
 if (feePayerLamports.value < LAMPORTS_FOR_FEES) {
   throw new Error(
     `The fee payer holds ${feePayerLamports.value} lamports and this run sends about a dozen ` +

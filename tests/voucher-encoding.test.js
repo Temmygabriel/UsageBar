@@ -41,6 +41,10 @@ import {
   encodeDistributeData,
   encodeDistributionPreimage,
   encodeOpenArgs,
+  encodeRequestCloseData,
+  encodeSealData,
+  encodeTopUpData,
+  encodeWithdrawPayerData,
   readTokenAccountAmount,
   signVoucher,
 } from "../tools/lib/protocol.mjs";
@@ -259,6 +263,51 @@ describe("distribution preimage", () => {
 
   it("pins the basis-point denominator", () => {
     expect(BPS_DENOMINATOR).toBe(10_000);
+  });
+});
+
+describe("argument-less instruction data", () => {
+  /**
+   * A one-byte instruction has no room to be subtly wrong: it is either the
+   * right discriminator or a completely different instruction. That is exactly
+   * why it is worth pinning — the failure mode is not a malformed buffer, it
+   * is calling `seal` when you meant `withdrawPayer`, and the program would
+   * execute it happily if the accounts happened to line up.
+   */
+  it("is the right single byte for each of the three", () => {
+    expect([...encodeRequestCloseData()]).toEqual([DISCRIMINATOR.requestClose]);
+    expect([...encodeSealData()]).toEqual([DISCRIMINATOR.seal]);
+    expect([...encodeWithdrawPayerData()]).toEqual([DISCRIMINATOR.withdrawPayer]);
+  });
+
+  it("matches the discriminator table, whose numbers are load-bearing", () => {
+    expect([...encodeRequestCloseData()]).toEqual([5]);
+    expect([...encodeSealData()]).toEqual([6]);
+    expect([...encodeWithdrawPayerData()]).toEqual([8]);
+    // 7 is `distribute`, and the gap between 6 and 8 is not a mistake here.
+    expect(DISCRIMINATOR.distribute).toBe(7);
+    expect(DISCRIMINATOR.topUp).toBe(3);
+  });
+});
+
+describe("topUp instruction data", () => {
+  it("is the discriminator followed by a little-endian u64", () => {
+    const data = encodeTopUpData(10_000_000n);
+    expect(data.length).toBe(9);
+    expect(data[0]).toBe(DISCRIMINATOR.topUp);
+    expect(Buffer.from(data.subarray(1)).readBigUInt64LE(0)).toBe(10_000_000n);
+  });
+
+  it("writes the low byte first, which is the difference between 1 and 2^56", () => {
+    // 0x0102030405060708 read little-endian. A big-endian encoder produces a
+    // plausible buffer that asks for an amount nobody intended.
+    const data = encodeTopUpData(0x0102030405060708n);
+    expect([...data.subarray(1)]).toEqual([8, 7, 6, 5, 4, 3, 2, 1]);
+  });
+
+  it("refuses a zero amount rather than sending a no-op", () => {
+    expect(() => encodeTopUpData(0n)).toThrow(/non-zero/);
+    expect(() => encodeTopUpData(-1n)).toThrow(/non-zero/);
   });
 });
 

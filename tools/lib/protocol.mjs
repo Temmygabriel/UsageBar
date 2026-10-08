@@ -439,6 +439,73 @@ export function encodeDistributeData(addressEncoder, entries) {
 }
 
 // ---------------------------------------------------------------------------
+// The argument-less instructions
+//
+// `requestClose`, `seal` and `withdrawPayer` take no arguments, so their
+// instruction data is a single byte. They are still functions rather than bare
+// arrays at each call site: a stray digit in a script is invisible, whereas a
+// wrong name here is a test failure, and `tests/voucher-encoding.test.js` pins
+// all three against the discriminator table.
+// ---------------------------------------------------------------------------
+
+/**
+ * `requestClose`: OPEN -> CLOSING, stamping `closure_started_at`.
+ *
+ * Payer-signed, and it moves no money — it starts a clock. After
+ * `grace_period` has passed, anyone may call `seal` and end the channel. That
+ * is the whole escape hatch: a service that has stopped responding cannot hold
+ * a customer's deposit indefinitely, and the customer needs nobody's
+ * cooperation to start the timer.
+ */
+export function encodeRequestCloseData() {
+  return new Uint8Array([DISCRIMINATOR.requestClose]);
+}
+
+/**
+ * `seal`: CLOSING -> SEALED, once the grace period has elapsed.
+ *
+ * Note that no account in its list is a signer — `seal` is permissionless on
+ * purpose. Whoever pays the transaction fee can trigger it, so the customer
+ * does not need the service to agree that the session is over.
+ */
+export function encodeSealData() {
+  return new Uint8Array([DISCRIMINATOR.seal]);
+}
+
+/**
+ * `withdrawPayer`: the payer's one-shot refund while SEALED.
+ *
+ * Rarer than it looks. `distribute` refunds the payer on its way past, so this
+ * exists for a channel that sealed and then, for whatever reason, never
+ * distributed. It stamps `payer_withdrawn_at`, and `distribute` reads that
+ * stamp before refunding — which is what stops the same remainder being
+ * returned twice across two separate transactions.
+ */
+export function encodeWithdrawPayerData() {
+  return new Uint8Array([DISCRIMINATOR.withdrawPayer]);
+}
+
+/**
+ * Instruction data for `topUp`: the discriminator, then the added amount.
+ *
+ * The amount must be non-zero, and it is an addition rather than a target —
+ * the channel's `deposit` grows by this much and no more. The channel's
+ * committed distribution plan is untouched, which is why a payer can extend a
+ * session without re-opening it.
+ */
+export function encodeTopUpData(amount) {
+  const value = BigInt(amount);
+  if (value <= 0n) {
+    throw new Error(`topUp must add a non-zero amount, got ${value}`);
+  }
+  const buffer = new Uint8Array(9);
+  const view = new DataView(buffer.buffer);
+  view.setUint8(0, DISCRIMINATOR.topUp);
+  view.setBigUint64(1, value, true);
+  return buffer;
+}
+
+// ---------------------------------------------------------------------------
 // Associated Token Account creation
 //
 // `distribute` validates the payee's and the treasury's canonical ATAs and

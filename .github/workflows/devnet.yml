@@ -25,6 +25,7 @@ on:
           - close
           - canonical-run
           - verify-canonical
+          - extended-paths
       salt:
         description: "Channel salt (open-channel, settle). Change it to open another channel."
         type: string
@@ -111,6 +112,7 @@ jobs:
             close)            node tools/devnet-close.mjs ;;
             canonical-run)    node tools/devnet-canonical-run.mjs ;;
             verify-canonical) node tools/verify-canonical-run.ts ;;
+            extended-paths)   node tools/devnet-extended-paths.mjs ;;
             *) echo "::error::Unknown script '${{ inputs.script }}'"; exit 1 ;;
           esac
         env:
@@ -156,12 +158,18 @@ jobs:
       # needs in order to see which steps genuinely happened and where it
       # stopped. `if: always()` is what makes that true.
       #
-      # Uploaded as an artifact rather than committed, because the run happens
+      # The same reasoning covers `extended-paths`, which writes its own
+      # directory and has its own two independent scenarios: a run where one
+      # scenario failed is more useful to read than one that produced nothing.
+      #
+      # Uploaded as artifacts rather than committed, because the run happens
       # on a schedule the repository should not be rewriting itself on.
       - name: Upload the evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: canonical-run-evidence
-          path: evidence/canonical-run/
+          name: ${{ inputs.script }}-evidence
+          path: |
+            evidence/canonical-run/
+            evidence/extended-paths/
           if-no-files-found: warn

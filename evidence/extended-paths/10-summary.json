@@ -1,0 +1,68 @@
+{
+  "run": "usagebar-extended-paths-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-08T16:54:38.693Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "the two scenarios are independent; one failing does not prevent the other from running, and the process exits non-zero if any check anywhere failed",
+  "scenario": "summary",
+  "channel": null,
+  "transactionSignature": null,
+  "doesNotProve": "anything about the deployed application. This script drives the program directly with keypairs the repository holds. The app calls none of these instructions and opens channels with an empty plan, so the interface is unaffected either way.",
+  "observed": {
+    "scenarios": {
+      "split": {
+        "completed": true,
+        "result": {
+          "channel": "7xytSvF1KzrASPyPttbaW7UNJQM1nxqoJ9KY7VxGurqo",
+          "settled": "3333330",
+          "expected": {
+            "alpha": "499999",
+            "beta": "166666",
+            "payee": "2666664",
+            "payer": "56666670",
+            "treasury": "1"
+          },
+          "received": {
+            "payer": "56666670",
+            "escrow": "-60000000",
+            "payee": "2666664",
+            "treasury": "1",
+            "alpha": "499999",
+            "beta": "166666"
+          }
+        }
+      },
+      "timeout": {
+        "completed": true,
+        "result": {
+          "channel": "PpeZDth75tr75PYHS79PijBarjrdm3SSAMfhre4aH1c",
+          "settled": "1250000",
+          "payeeReceived": "1250000",
+          "payerReceivedAgain": "0",
+          "refundedEarlier": "48750000"
+        }
+      }
+    },
+    "evidenceFiles": [
+      "01-split-open.json",
+      "02-split-topup.json",
+      "03-split-distributed.json",
+      "04-timeout-open.json",
+      "05-timeout-request-close.json",
+      "06-timeout-seal-refused.json",
+      "07-timeout-sealed.json",
+      "08-timeout-payer-refund.json",
+      "09-timeout-distributed.json"
+    ],
+    "failedChecks": [],
+    "confirmationRecoveries": 1
+  },
+  "expected": {
+    "failedChecks": []
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "run": "usagebar-extended-paths-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-08T16:54:37.528Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "the payer's token account and the escrow were both re-read; the refund is claimed only because tokens arrived, not because the transaction succeeded",
+  "scenario": "timeout",
+  "channel": "PpeZDth75tr75PYHS79PijBarjrdm3SSAMfhre4aH1c",
+  "transactionSignature": "4hTWYQgziPBBQYbMos8gAunKoMcCcZjgwVhfpqetgr2o87SsmEJ6m9L7CqFtjyojQjS3ARjKuLxCHnL1ViUzC5Jo",
+  "explorer": "https://explorer.solana.com/tx/4hTWYQgziPBBQYbMos8gAunKoMcCcZjgwVhfpqetgr2o87SsmEJ6m9L7CqFtjyojQjS3ARjKuLxCHnL1ViUzC5Jo?cluster=devnet",
+  "observed": {
+    "statusAfter": 1,
+    "payerWithdrawnAt": "1791478476",
+    "payerBalanceBefore": "999361000010",
+    "payerBalanceAfter": "999409750010",
+    "escrowBefore": "50000000",
+    "escrowAfter": "1250000",
+    "refunded": "48750000"
+  },
+  "expected": {
+    "refunded": "48750000",
+    "statusAfter": 1,
+    "escrowAfter": "1250000"
+  }
+}

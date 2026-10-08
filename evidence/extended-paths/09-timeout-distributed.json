@@ -1,0 +1,35 @@
+{
+  "run": "usagebar-extended-paths-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-08T16:54:38.693Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "the payer's and the provider's token accounts were re-read before and after; the payer's delta being exactly zero is the whole claim, and it is the number a transaction-success check would have missed",
+  "scenario": "timeout",
+  "channel": "PpeZDth75tr75PYHS79PijBarjrdm3SSAMfhre4aH1c",
+  "transactionSignature": "ty9ctbUNzz2dhAYghut7EAS9Um8EbvRCbkjHYXHMouTEfGgLXNL4RnHkMefeBgTe4eVUcnYs21SRCW4sJZV1m4g",
+  "explorer": "https://explorer.solana.com/tx/ty9ctbUNzz2dhAYghut7EAS9Um8EbvRCbkjHYXHMouTEfGgLXNL4RnHkMefeBgTe4eVUcnYs21SRCW4sJZV1m4g?cluster=devnet",
+  "doesNotProve": "what would have happened without the earlier withdrawPayer — the gate is proven by the zero, not by a comparison against a run that omitted the refund",
+  "observed": {
+    "statusBefore": 1,
+    "statusAfter": 3,
+    "channelReaped": false,
+    "distributeError": null,
+    "settled": "1250000",
+    "payoutWatermark": "0",
+    "payerWithdrawnAt": "0",
+    "payeeReceived": "1250000",
+    "payerReceived": "0",
+    "treasuryReceived": "0",
+    "escrowBalanceAfter": null
+  },
+  "expected": {
+    "payeeReceived": "1250000",
+    "payerReceived": "0",
+    "escrowBalanceAfter": null
+  }
+}

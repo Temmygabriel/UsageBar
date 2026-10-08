@@ -1,0 +1,32 @@
+{
+  "run": "usagebar-extended-paths-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-08T16:54:01.716Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "the channel and both token accounts were re-read after the transaction: the deposit field, the escrow balance and the payer's balance must all move by exactly the topped-up amount",
+  "scenario": "split",
+  "channel": "7xytSvF1KzrASPyPttbaW7UNJQM1nxqoJ9KY7VxGurqo",
+  "transactionSignature": "2JMuzeABWKmJJN1WC7J1YnccYwVCxKQ9MY1jG3xBsVHT2knqkLPNCzxWys6nRaZtAycRfPQoJrki8jKNrdAy1DpL",
+  "explorer": "https://explorer.solana.com/tx/2JMuzeABWKmJJN1WC7J1YnccYwVCxKQ9MY1jG3xBsVHT2knqkLPNCzxWys6nRaZtAycRfPQoJrki8jKNrdAy1DpL?cluster=devnet",
+  "observed": {
+    "depositBefore": "50000000",
+    "depositAfter": "60000000",
+    "escrowBefore": "50000000",
+    "escrowAfter": "60000000",
+    "payerBalanceBefore": "999364333340",
+    "payerBalanceAfter": "999354333340",
+    "distributionHashBefore": "6ce22fabe45b07fede13458e0e024ce0b32face9437d5180d357b3eb16f66596",
+    "distributionHashAfter": "6ce22fabe45b07fede13458e0e024ce0b32face9437d5180d357b3eb16f66596"
+  },
+  "expected": {
+    "depositAfter": "60000000",
+    "escrowAfter": "60000000",
+    "payerBalanceAfter": "999354333340",
+    "distributionHashAfter": "6ce22fabe45b07fede13458e0e024ce0b32face9437d5180d357b3eb16f66596"
+  }
+}

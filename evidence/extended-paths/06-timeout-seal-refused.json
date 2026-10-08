@@ -1,0 +1,29 @@
+{
+  "run": "usagebar-extended-paths-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-08T16:54:22.400Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "the identical `seal` instruction is retried below once the grace period has elapsed. It is the only variable that changes between the two attempts, so a rejection here and a success there is what attributes the rejection to the clock rather than to a malformed instruction",
+  "scenario": "timeout",
+  "channel": "PpeZDth75tr75PYHS79PijBarjrdm3SSAMfhre4aH1c",
+  "transactionSignature": "5Sp4Y9Nh2rWUr9hAopxvyY31TMYCH53xjqHgLVSgQcqWRBFMedyg168dKjwAauLMTu9r6dyC5TjBaTMJpSafvw76",
+  "explorer": "https://explorer.solana.com/tx/5Sp4Y9Nh2rWUr9hAopxvyY31TMYCH53xjqHgLVSgQcqWRBFMedyg168dKjwAauLMTu9r6dyC5TjBaTMJpSafvw76?cluster=devnet",
+  "doesNotProve": "which error code the grace guard returns — the text is recorded verbatim rather than mapped to a name this script has not verified",
+  "observed": {
+    "attempted": "seal, immediately after requestClose",
+    "rejected": true,
+    "error": "Transaction simulation failed\nProgram CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX invoke [1]\nProgram CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX consumed 249 of 200000 compute units\nProgram CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX failed: custom program error: 0x899",
+    "statusAfter": 2,
+    "elapsedMsSinceRequestClose": 1591,
+    "gracePeriodSeconds": 10
+  },
+  "expected": {
+    "rejected": true,
+    "statusAfter": 2
+  }
+}

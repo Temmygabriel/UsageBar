@@ -1,0 +1,50 @@
+{
+  "run": "usagebar-extended-paths-001",
+  "network": "devnet",
+  "programId": "CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX",
+  "assetMint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+  "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+  "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+  "writtenAt": "2026-10-08T16:54:17.173Z",
+  "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
+  "verificationMethod": "the channel account was re-read and decoded after the open transaction confirmed",
+  "scenario": "timeout",
+  "channel": "PpeZDth75tr75PYHS79PijBarjrdm3SSAMfhre4aH1c",
+  "channelBump": 254,
+  "transactionSignature": "4Zxm4gpVH33nFau2e3d1jfSKZ9ed2AiVUf7cCWfbDzqSfDhwmdk2NPqnfpUBtrXq72fo7XYeeAdqdbRgUGa21u4R",
+  "explorer": "https://explorer.solana.com/tx/4Zxm4gpVH33nFau2e3d1jfSKZ9ed2AiVUf7cCWfbDzqSfDhwmdk2NPqnfpUBtrXq72fo7XYeeAdqdbRgUGa21u4R?cluster=devnet",
+  "explorerChannel": "https://explorer.solana.com/address/PpeZDth75tr75PYHS79PijBarjrdm3SSAMfhre4aH1c?cluster=devnet",
+  "observed": {
+    "channel": {
+      "discriminator": 1,
+      "version": 1,
+      "bump": 254,
+      "status": 0,
+      "salt": "1791478456196",
+      "deposit": "50000000",
+      "settled": "0",
+      "payoutWatermark": "0",
+      "closureStartedAt": "0",
+      "payerWithdrawnAt": "0",
+      "gracePeriod": 10,
+      "distributionHash": "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
+      "payer": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+      "payee": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+      "authorizedSigner": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
+      "mint": "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL",
+      "rentPayer": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
+      "openSlot": "508883573",
+      "bytesConsumed": 256
+    },
+    "escrowLamports": "1950720",
+    "payerBalance": "999361000010"
+  },
+  "expected": {
+    "deposit": "50000000",
+    "status": 0,
+    "gracePeriod": 10,
+    "closureStartedAt": "0",
+    "payerWithdrawnAt": "0"
+  }
+}

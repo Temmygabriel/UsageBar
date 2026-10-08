@@ -366,6 +366,75 @@ async function readChannel(channelAddress, label) {
  * The call is still recorded — the fee is real even when the instruction is
  * not — because "the program refused this" is itself the thing being proven.
  */
+/** Errors that mean "the transport failed", not "the program refused". */
+const TRANSPORT_FAILURE =
+  /websocket|socket|timed? ?out|fetch failed|429|too many requests|rate.?limit|econnreset|network/i;
+
+/**
+ * How many times the confirmation stream claimed a transaction failed when the
+ * chain said it had landed. Counted rather than only logged, because it is a
+ * fact about the endpoint this ran against and belongs in the artifact.
+ */
+let confirmationRecoveries = 0;
+
+/**
+ * Ask the cluster what it thinks happened to a signature.
+ *
+ * Only called once the confirmation transport has already complained, because
+ * that transport is a WebSocket against a shared public endpoint and it drops.
+ * A dropped socket is not a dropped transaction — and on this script's second
+ * run it was exactly that: three transactions reported `WebSocket failed to
+ * connect` and had in fact landed cleanly, while a fourth reported
+ * `Transaction simulation failed` because a 429 retry re-sent a blockhash the
+ * cluster had already processed. Believing the transport produced four failed
+ * checks for four instructions that all worked.
+ */
+async function chainOutcome(signature, label) {
+  const { value } = await retry(`${label}: getSignatureStatuses`, () =>
+    rpc.getSignatureStatuses([signature], { searchTransactionHistory: true }).send(),
+  );
+  const status = value[0];
+  if (!status) return { settled: false };
+  // Landed and rejected by the program. This is a better answer than the
+  // transport's text: it carries the program's own error, not a simulation
+  // summary that reads the same for every mistake.
+  if (status.err) return { settled: true, error: JSON.stringify(status.err) };
+  const done = status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized";
+  return { settled: done };
+}
+
+/**
+ * Send a signed transaction and establish whether it landed.
+ *
+ * Resending is safe throughout: the signature is fixed at signing time, so the
+ * cluster deduplicates rather than charging the fee twice.
+ */
+async function land(signed, signature, label) {
+  let lastError = "not attempted";
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await retry(`${label}: confirm`, () => sendAndConfirm(signed, { commitment: "confirmed" }));
+      return { error: null, recovered: false };
+    } catch (error) {
+      lastError = describeError(error);
+    }
+
+    const outcome = await chainOutcome(signature, label);
+    if (outcome.settled) {
+      return outcome.error
+        ? { error: `${outcome.error}\n${lastError}`, recovered: false }
+        : { error: null, recovered: true };
+    }
+    // Nothing on chain and the failure is not a transport problem: a preflight
+    // rejection is deterministic, so a retry only spends another minute
+    // producing the same sentence.
+    if (!TRANSPORT_FAILURE.test(lastError)) return { error: lastError, recovered: false };
+  }
+
+  return { error: lastError, recovered: false };
+}
+
 async function send(instructions, { label, expectFailure = false } = {}) {
   const { value: latestBlockhash } = await getLatestBlockhash();
   const message = pipe(
@@ -377,22 +446,20 @@ async function send(instructions, { label, expectFailure = false } = {}) {
   const signed = await signTransactionMessageWithSigners(message);
   const signature = getSignatureFromTransaction(signed);
 
-  try {
-    // Resending the same signed transaction on a rate limit is safe: it carries
-    // the same signature, so the cluster deduplicates it rather than charging
-    // the fee twice.
-    await retry(label, () => sendAndConfirm(signed, { commitment: "confirmed" }));
-    if (expectFailure) {
-      check(false, `${label}: the transaction was accepted, but it was expected to be rejected`);
-    }
-    return { signature, error: null };
-  } catch (error) {
-    const text = describeError(error);
-    if (!expectFailure) {
-      check(false, `${label}: ${text.split("\n")[0]}`);
-    }
-    return { signature, error: text };
+  const { error, recovered } = await land(signed, signature, label);
+
+  if (recovered) {
+    confirmationRecoveries += 1;
+    console.log(`    .. ${label}: the confirmation stream dropped, but the transaction is on chain`);
   }
+  if (error === null && expectFailure) {
+    check(false, `${label}: the transaction was accepted, but it was expected to be rejected`);
+  }
+  if (error !== null && !expectFailure) {
+    check(false, `${label}: ${error.split("\n")[0]}`);
+  }
+
+  return { signature, error };
 }
 
 function ataInstructionFor(ataAccount, owner) {
@@ -906,15 +973,23 @@ async function scenarioSplit() {
   // Conservation, read rather than computed: every token that arrived in a
   // recipient, in the payee's account, back to the payer, or in the treasury
   // must equal the tokens that left the escrow. The treasury's expected value
-  // above is derived from the escrow, so a check against it would be checking
+  // above is derived from the escrow, so checking against it would be checking
   // the arithmetic against itself — this compares five independently observed
-  // deltas against a sixth account's change, which is a different claim.
-  const totalReceived = Object.values(received).reduce((total, value) => total + value, 0n);
+  // deltas against a sixth account's change.
+  //
+  // The escrow is excluded from the sum, and that is the whole subtlety: it is
+  // watched too, so its own delta is minus everything the others gained, and
+  // including it makes the total zero on a run where nothing went wrong. The
+  // first version of this check did exactly that and reported failure on a
+  // distribution where all five payouts had matched to the atomic unit.
+  const totalReceived = Object.entries(received)
+    .filter(([name]) => name !== "escrow")
+    .reduce((total, [, value]) => total + value, 0n);
   const escrowDrained = (balancesBefore.escrow ?? 0n) - (balancesAfter.escrow ?? 0n);
 
   check(
     totalReceived === escrowDrained,
-    `${totalReceived} atomic units arrived across the payout accounts, but the escrow only fell ` +
+    `${totalReceived} atomic units arrived across the five payout accounts, but the escrow fell ` +
       `by ${escrowDrained}`,
   );
   check(
@@ -1512,6 +1587,7 @@ writeEvidence("10-summary.json", {
     scenarios: summary,
     evidenceFiles: written,
     failedChecks: failures,
+    confirmationRecoveries,
   },
   expected: {
     failedChecks: [],

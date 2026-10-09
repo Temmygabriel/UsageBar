@@ -70,6 +70,7 @@ import {
   CHANNEL_ERRORS,
   CHANNEL_LEN,
   CHANNEL_STATUS,
+  CHANNEL_STATUS_CODE,
   DEVNET_TREASURY_OWNER,
   DISCRIMINATOR,
   ED25519_PRECOMPILE,
@@ -502,7 +503,7 @@ function ataInstructionFor(ataAccount, owner) {
 /** Sign a 50-byte voucher and submit it in a precompile immediately before `settle`. */
 async function meterOnce({ channelAddress, ratePerSecond, label }) {
   const before = await readChannel(channelAddress, label);
-  if (before.channel.status !== 0) {
+  if (before.channel.status !== CHANNEL_STATUS_CODE.Open) {
     throw new Error(
       `${label}: the channel is ${CHANNEL_STATUS[before.channel.status]}, and usage can only be ` +
         "metered while it is Open.",
@@ -631,7 +632,10 @@ async function openChannel({ label, saltOffset = 0, gracePeriod, deposit, recipi
   const { account, channel } = await readChannel(channelAddress, label);
   const escrow = await readTokenBalance(channelTokenAccount);
 
-  check(channel.status === 0, `${label}: status is ${channel.status}, not 0 (Open)`);
+  check(
+    channel.status === CHANNEL_STATUS_CODE.Open,
+    `${label}: status is ${channel.status} (${CHANNEL_STATUS[channel.status]}), not 0 (Open)`,
+  );
   check(channel.deposit === deposit, `${label}: deposit is ${channel.deposit}, not ${deposit}`);
   check(channel.gracePeriod === gracePeriod, `${label}: grace period is ${channel.gracePeriod}`);
   check(escrow === deposit, `${label}: the escrow holds ${escrow}, not ${deposit}`);
@@ -880,7 +884,10 @@ async function scenarioSplit() {
   log(`    tx             : ${seal.signature}`);
   log("");
 
-  check(sealed.channel.status === 1, `the channel is ${CHANNEL_STATUS[sealed.channel.status]}, not Sealed`);
+  check(
+    sealed.channel.status === CHANNEL_STATUS_CODE.Sealed,
+    `the channel is ${CHANNEL_STATUS[sealed.channel.status]}, not Sealed`,
+  );
 
   // --- distribute ----------------------------------------------------------
 
@@ -1022,23 +1029,59 @@ async function scenarioSplit() {
     `the escrow still holds ${balancesAfter.escrow}; it should have been drained and closed`,
   );
 
+  // Read the channel back AFTER `distribute`, not before.
+  //
+  // The first version of this artifact reported `decoded(sealed.channel)` — the
+  // snapshot taken before the transaction — under the bare name `channel`.
+  // It read as a post-distribution observation and was a pre-distribution one:
+  // status 1 (Sealed) with `payoutWatermark` still 0, in a file whose whole
+  // subject is a distribution that had already moved every token. Both states
+  // are real; only one of them is what the field claims to be.
+  const splitFinalAccount = await readChannelAccount(opened.channelAddress);
+  const splitFinalChannel =
+    splitFinalAccount === null ? null : decodeChannel(splitFinalAccount.raw, addressDecoder);
+
+  // Pin the post-distribution state. This check is what the mislabelling above
+  // would have tripped: reading the channel after `distribute` and asserting it
+  // says Distributed is incompatible with reporting the pre-distribution
+  // snapshot under the same name.
+  //
+  // A reaped PDA is a pass rather than a skip — `distribute` deallocates the
+  // channel when it runs more than 1500 slots after `open`, so the absence of
+  // the account is the program being correct, not a missing answer.
+  if (splitFinalChannel !== null) {
+    check(
+      splitFinalChannel.status === CHANNEL_STATUS_CODE.Distributed,
+      `after distribute the channel reads status ${splitFinalChannel.status} ` +
+        `(${CHANNEL_STATUS[splitFinalChannel.status]}), not 3 (Distributed)`,
+    );
+    // Read, not assumed. The sealed path does NOT advance `payout_watermark` —
+    // it is 0 on chain after a successful distribution, because the channel is
+    // terminal and there is no second payout for the watermark to gate.
+    log(`    channel after  : status ${splitFinalChannel.status}, payoutWatermark ${splitFinalChannel.payoutWatermark}`);
+    log("");
+  }
+
   writeEvidence("03-split-distributed.json", {
     scenario: "split",
     channel: opened.channelAddress,
     transactionSignature: distribute.signature,
     explorer: explorerTx(distribute.signature),
     observed: {
-      channel: decoded(sealed.channel),
+      channelAfter: splitFinalChannel === null ? null : decoded(splitFinalChannel),
+      // Kept so the reader can see the state the split was computed FROM. The
+      // formula in `method` below takes these two numbers as its inputs, and a
+      // post-transaction `payoutWatermark` would make it look wrong.
+      channelBefore: decoded(sealed.channel),
       // Tolerant of a reaped PDA for the same reason as the timeout scenario:
       // both outcomes are the program behaving correctly, and which one you get
       // depends only on how long the channel lived.
-      channelReaped: (await readChannelAccount(opened.channelAddress)) === null,
+      channelReaped: splitFinalAccount === null,
       distributeError: distribute.error,
       planRevealedHex: revealedPreimage.toString("hex"),
       planRevealedSha256: revealedHash,
-      deposit: sealed.channel.deposit.toString(),
-      settled: settled.toString(),
-      payoutWatermark: payoutWatermark.toString(),
+      settledAtDistribute: settled.toString(),
+      payoutWatermarkAtDistribute: payoutWatermark.toString(),
       recipientOrder: recipients.map((entry) => ({ name: entry.name, ata: entry.ata, bps: entry.bps })),
       received: Object.fromEntries(
         Object.entries(received).map(([key, value]) => [key, value.toString()]),
@@ -1152,7 +1195,7 @@ async function scenarioTimeout() {
   log("");
 
   check(
-    closing.channel.status === 2,
+    closing.channel.status === CHANNEL_STATUS_CODE.Closing,
     `after requestClose the status is ${closing.channel.status} (${CHANNEL_STATUS[closing.channel.status]}), ` +
       "not 2 (Closing)",
   );
@@ -1220,7 +1263,7 @@ async function scenarioTimeout() {
   // status is unchanged AND the identical instruction succeeds later with
   // nothing changed but the clock, then time was the only variable.
   check(
-    afterEarlySeal.channel.status === 2,
+    afterEarlySeal.channel.status === CHANNEL_STATUS_CODE.Closing,
     `sealing before the grace period elapsed was accepted; the status is ` +
       `${afterEarlySeal.channel.status} (${CHANNEL_STATUS[afterEarlySeal.channel.status]})`,
   );
@@ -1287,7 +1330,7 @@ async function scenarioTimeout() {
   log("");
 
   check(
-    sealed.channel.status === 1,
+    sealed.channel.status === CHANNEL_STATUS_CODE.Sealed,
     `after the grace period the status is ${sealed.channel.status} ` +
       `(${CHANNEL_STATUS[sealed.channel.status]}), not 1 (Sealed)`,
   );
@@ -1369,7 +1412,7 @@ async function scenarioTimeout() {
   // The channel survives its own refund. This is what makes withdrawPayer the
   // escape hatch rather than a close: the merchant still has to be paid.
   check(
-    afterWithdraw.channel.status === 1,
+    afterWithdraw.channel.status === CHANNEL_STATUS_CODE.Sealed,
     `withdrawPayer left the channel in status ${afterWithdraw.channel.status}; it must stay Sealed`,
   );
 
@@ -1482,12 +1525,32 @@ async function scenarioTimeout() {
   // outcome too, and it must be recorded as found rather than turned into a
   // throw: reading a reaped channel with `readChannel` would fail the scenario
   // for the program doing the right thing.
+  //
+  // Decode it in full rather than only the status. An earlier version of this
+  // artifact reported `payerWithdrawnAt` out of the snapshot taken BEFORE
+  // `withdrawPayer` ran, under a name that reads as though it were read after
+  // `distribute`. It said 0; the chain says 1791518378. The value was real and
+  // the label was wrong, which is the worse of the two failure modes — a
+  // reader has no way to tell.
   const finalAccount = await readChannelAccount(opened.channelAddress);
-  const finalStatus =
-    finalAccount === null ? null : decodeChannel(finalAccount.raw, addressDecoder).status;
+  const finalChannel = finalAccount === null ? null : decodeChannel(finalAccount.raw, addressDecoder);
+  const finalStatus = finalChannel === null ? null : finalChannel.status;
 
   log(`    channel PDA    : ${finalAccount === null ? "reaped" : `status ${finalStatus}`}`);
   log("");
+  if (finalChannel !== null) {
+    // Same pin as the split scenario: the state reported under a
+    // post-transaction name has to be a post-transaction read.
+    check(
+      finalChannel.status === CHANNEL_STATUS_CODE.Distributed,
+      `after distribute the channel reads status ${finalChannel.status} ` +
+        `(${CHANNEL_STATUS[finalChannel.status]}), not 3 (Distributed)`,
+    );
+    log(`    deposit        : ${format(finalChannel.deposit)}`);
+    log(`    settled        : ${format(finalChannel.settled)}`);
+    log(`    payerWithdrawn : ${finalChannel.payerWithdrawnAt}`);
+    log("");
+  }
 
   writeEvidence("09-timeout-distributed.json", {
     scenario: "timeout",
@@ -1499,9 +1562,13 @@ async function scenarioTimeout() {
       statusAfter: finalStatus,
       channelReaped: finalAccount === null,
       distributeError: distribute.error,
-      settled: sealed.channel.settled.toString(),
-      payoutWatermark: sealed.channel.payoutWatermark.toString(),
-      payerWithdrawnAt: sealed.channel.payerWithdrawnAt.toString(),
+      // Read back from the channel AFTER the transaction, or null when the
+      // program reaped it. The pre-transaction snapshot is not reported under
+      // these names: see 08 for the state `withdrawPayer` left behind.
+      deposit: finalChannel?.deposit.toString() ?? null,
+      settled: finalChannel?.settled.toString() ?? null,
+      payoutWatermark: finalChannel?.payoutWatermark.toString() ?? null,
+      payerWithdrawnAt: finalChannel?.payerWithdrawnAt.toString() ?? null,
       payeeReceived: payeeReceived.toString(),
       payerReceived: payerReceivedAgain.toString(),
       treasuryReceived: treasuryReceived.toString(),

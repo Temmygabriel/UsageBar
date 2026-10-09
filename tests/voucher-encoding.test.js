@@ -25,6 +25,8 @@ import {
   BPS_DENOMINATOR,
   CANONICAL_IX_DATA_LEN,
   CHANNEL_ERRORS,
+  CHANNEL_STATUS,
+  CHANNEL_STATUS_CODE,
   DISCRIMINATOR,
   MAX_DISTRIBUTION_RECIPIENTS,
   MESSAGE_OFFSET,
@@ -597,6 +599,23 @@ describe("readTokenAccountAmount", () => {
 
   it("refuses a buffer too short to hold an amount", () => {
     expect(() => readTokenAccountAmount(new Uint8Array(64))).toThrow(/too short/);
+  });
+});
+
+describe("CHANNEL_STATUS_CODE", () => {
+  it("agrees with CHANNEL_STATUS on every code", () => {
+    // Two representations of one enum, and the failure mode when they drift is
+    // silent: `CHANNEL_STATUS.Distributed` is `undefined` on an array, so a
+    // check written that way compares against `undefined` and reports whatever
+    // that produces. This pins the pair rather than the entries.
+    for (const [name, code] of Object.entries(CHANNEL_STATUS_CODE)) {
+      expect(CHANNEL_STATUS[code]).toBe(name);
+    }
+    expect(Object.keys(CHANNEL_STATUS_CODE)).toHaveLength(CHANNEL_STATUS.length);
+  });
+
+  it("names the four states the program documents, in order", () => {
+    expect(CHANNEL_STATUS_CODE).toEqual({ Open: 0, Sealed: 1, Closing: 2, Distributed: 3 });
   });
 });
 

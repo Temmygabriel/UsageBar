@@ -67,6 +67,22 @@ export const DISCRIMINATOR = {
 
 export const CHANNEL_STATUS = ["Open", "Sealed", "Closing", "Distributed"];
 
+/**
+ * The same four names as status *codes*, because `CHANNEL_STATUS.Distributed`
+ * is `undefined` on an array — the trap is silent, and the check it lands in
+ * compares against `undefined` and passes or fails for the wrong reason.
+ *
+ * The bare literals this replaces (`status === 1`) were readable only by
+ * counting positions in `CHANNEL_STATUS`, which is the same guess written
+ * without a label.
+ */
+export const CHANNEL_STATUS_CODE = {
+  Open: 0,
+  Sealed: 1,
+  Closing: 2,
+  Distributed: 3,
+};
+
 // ---------------------------------------------------------------------------
 // Channel account
 // ---------------------------------------------------------------------------

@@ -1247,8 +1247,11 @@ async function scenarioTimeout() {
       "only variable that changes between the two attempts, so a rejection here and a success there " +
       "is what attributes the rejection to the clock rather than to a malformed instruction",
     doesNotProve:
-      "which error code the grace guard returns — the text is recorded verbatim rather than mapped to " +
-      "a name this script has not verified",
+      "that this particular guard is the only thing that could produce a rejection at this moment. " +
+      "The named code on the error (2201 SealGracePeriodNotElapsed in errors.rs) is corroboration, " +
+      "not the proof — a name is read from source, whereas the retry-succeeds-later shape is " +
+      "observed. What rules out every other cause is that the same bytes succeed once the clock " +
+      "moves.",
   });
 
   // --- wait it out ---------------------------------------------------------

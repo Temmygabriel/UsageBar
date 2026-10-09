@@ -1,6 +1,6 @@
 # UsageBar — Progress Log
 
-**Last updated:** 2026-10-07
+**Last updated:** 2026-10-09
 **Submission deadline:** 2026-10-12
 **Repo:** <https://github.com/Temmygabriel/UsageBar>
 **Build spec:** `USAGEBAR_BUILD_SPEC.md`
@@ -14,7 +14,24 @@
 
 ## Where we are right now
 
-**All three gates are passed. So is the canonical run. And so is the deployment.**
+**All three gates are passed. So is the canonical run. So is the deployment. And
+so are the four protocol paths the product does not use.**
+
+**Every instruction in the program now has a chain receipt behind it.** The four
+the canonical run never touched — `topUp`, a distribution plan with real
+recipients, and the `requestClose` → `seal` → `withdrawPayer` timeout escape
+hatch — were each driven on Devnet by
+[`tools/devnet-extended-paths.mjs`](tools/devnet-extended-paths.mjs). Run four
+times, 0 failed checks, nine artifacts under
+[`evidence/extended-paths/`](evidence/extended-paths/).
+
+The most interesting thing it proves is a rounding rule. Every share is
+`floor(settled × bps / 10000)`, so at a rate of `333333` the two explicit
+recipients get `499999` and `166666` — half a unit each, floored away — the
+provider gets its own 8000 bps rather than "whatever is left", and the single
+remaining atomic unit of dust is swept to the treasury. At the app's own rate of
+`250000` every product divides exactly and none of that would be visible, which
+is why the run deliberately does not use it.
 
 **The app is live at <https://usagebar.vercel.app>** and it has been driven end
 to end over HTTPS against Devnet — open, meter, close, pay out — with every
@@ -56,7 +73,7 @@ transaction itself, and the cluster accepted it — but never for Phantom's
 consent screen. That is the last unverified surface and the one CI structurally
 cannot cover.
 
-**CI is green** — typecheck, 94 tests across 4 files, and a production build.
+**CI is green** — typecheck, 110 tests across 4 files, and a production build.
 That is the whole pipeline, and it is the only compiler available here.
 
 ---
@@ -214,8 +231,9 @@ keypair, and the suite checks the offset three ways, including one case that mus
 land 64 bytes early.
 
 **Green as of 2026-10-06: typecheck, 94 tests across 4 files, and a production
-build — all passing.** `docs/ARCHITECTURE.md`, `docs/SECURITY.md` and
-`docs/LIMITATIONS.md` were written alongside it.
+build — all passing.** (The count is now 110; this line records that date.)
+`docs/ARCHITECTURE.md`, `docs/SECURITY.md` and `docs/LIMITATIONS.md` were
+written alongside it.
 
 ### The meter cannot flatter itself
 
@@ -495,6 +513,65 @@ fixed code worked first time, and because that channel had been open for twenty
 minutes rather than seconds, it was **reaped** — `slot > open_slot + 1500` was
 finally satisfied. Both outcomes now have a recorded example, which is a better
 ending than tidying the mess away.
+
+### 2026-10-09 — The four paths the product doesn't use, and a rounding rule
+
+Every instruction in the program now has a chain receipt. The four the canonical
+run never touched — `topUp`, a distribution plan with real recipients, and the
+`requestClose` → `seal` → `withdrawPayer` timeout escape hatch — were driven by
+[`tools/devnet-extended-paths.mjs`](tools/devnet-extended-paths.mjs) in two
+independent scenarios. Run four times, 0 failed checks, nine artifacts.
+
+The reason to run it at a rate of `333333` rather than the app's own `250000` is
+that at `250000` every product of the split divides exactly. At `333333` the
+remainders are all `.5`, and the run shows what the program does with them:
+
+| Account | Received | |
+|---|---|---|
+| alpha (1500 bps) | `499999` | `floor(3333330 × 1500 / 10000)` = `floor(499999.5)` |
+| beta (500 bps) | `166666` | `floor(3333330 × 500 / 10000)` = `floor(166666.5)` |
+| provider (implicit 8000 bps) | `2666664` | its own basis points, not the remainder |
+| customer | `56666670` | `deposit − settled` |
+| treasury | `1` | the dust |
+
+Three separable facts, none of which one number carries: shares **floor**
+rather than round, the provider is paid **its own** basis-point share rather
+than handed whatever is left, and the last atomic unit is **swept to the
+treasury** rather than stranded in a closed account.
+
+Scenario B proved the payer-protection timeout: `requestClose` started a
+10-second clock, `seal` was refused 2.3 seconds in, and the *identical*
+instruction succeeded once the clock moved — which is what attributes the
+refusal to the clock rather than to a malformed call.
+
+**Two mistakes worth recording, because both were in the evidence rather than
+the code.**
+
+The first was mine and it was caught by reading the chain instead of the
+artifact: both distribute artifacts reported channel fields decoded from
+snapshots taken *before* the transaction they described. `03` filed a
+`status: 1 (Sealed)` channel under the bare name `channel` in a file about a
+distribution that had already run; `09` filed `payerWithdrawnAt` from before
+`withdrawPayer` had set it, saying `0` where the chain says a real timestamp.
+Neither value was invented — both were true reads of the wrong moment filed
+under a name claiming a different one, which is harder to catch than a
+fabricated number because nothing is internally inconsistent. Both artifacts
+now carry `channelBefore` and `channelAfter` separately, and both scenarios
+assert the post-transaction read says `Distributed`.
+
+The second was the error table. `CHANNEL_ERRORS` was written from memory first,
+and reading `errors.rs` showed three of the four distribution codes were wrong.
+`260`, `262` and `264` also all carry the *same* upstream message
+(`num_recipients outside [0, 32]`), so which one a count violation raises is
+inferred from the name rather than traced — the source comment says so rather
+than implying otherwise.
+
+The raw chain read that caught the first mistake also produced two facts that
+are the opposite of what a reasonable reader would assume, and are now in
+[`docs/CLAIM_STATUS.md`](docs/CLAIM_STATUS.md): `payout_watermark` reads `0`
+after a successful sealed distribution (the channel is terminal; there is no
+later payout to gate), and `seal` **clears** `closure_started_at` rather than
+leaving the stamp `requestClose` wrote.
 
 ---
 

@@ -6,7 +6,7 @@
   "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
   "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
-  "writtenAt": "2026-10-08T16:54:38.693Z",
+  "writtenAt": "2026-10-09T23:03:47.417Z",
   "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
   "verificationMethod": "the two scenarios are independent; one failing does not prevent the other from running, and the process exits non-zero if any check anywhere failed",
   "scenario": "summary",
@@ -18,7 +18,7 @@
       "split": {
         "completed": true,
         "result": {
-          "channel": "7xytSvF1KzrASPyPttbaW7UNJQM1nxqoJ9KY7VxGurqo",
+          "channel": "DsHVQRkN9vcKAQqpR5YVVzz2AT5mzS8XNEK5ocUW9hq4",
           "settled": "3333330",
           "expected": {
             "alpha": "499999",
@@ -40,7 +40,7 @@
       "timeout": {
         "completed": true,
         "result": {
-          "channel": "PpeZDth75tr75PYHS79PijBarjrdm3SSAMfhre4aH1c",
+          "channel": "2bYU3Tgogs5WbvdErtVFeL12d1YeMaWx6Lw7rRGqT39S",
           "settled": "1250000",
           "payeeReceived": "1250000",
           "payerReceivedAgain": "0",
@@ -60,7 +60,7 @@
       "09-timeout-distributed.json"
     ],
     "failedChecks": [],
-    "confirmationRecoveries": 1
+    "confirmationRecoveries": 2
   },
   "expected": {
     "failedChecks": []

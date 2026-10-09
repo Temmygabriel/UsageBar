@@ -12,13 +12,14 @@ INFERRED   — follows from proven facts, but not directly demonstrated
 UNVERIFIED — not tested. This is the default. It is not a soft "probably fine".
 ```
 
-Last updated: **2026-10-07** (five gates passed — a real channel was opened, its
+Last updated: **2026-10-09** (six gates passed — a real channel was opened, its
 watermark advanced by real cumulative vouchers, it was sealed and paid out with
 every balance read back from raw chain state, the canonical run
 `canonical-usagebar-devnet-001` completed all twelve steps in one pass with its
-artifacts committed and independently re-verified, and the **deployed
-application** was driven end to end over HTTPS against Devnet — which found and
-fixed a real bug in the close path).
+artifacts committed and independently re-verified, the **deployed application**
+was driven end to end over HTTPS against Devnet — which found and fixed a real
+bug in the close path — and the four protocol paths the canonical run never
+touched were each exercised directly on chain).
 
 ---
 
@@ -210,15 +211,99 @@ itself. That stands in for a wallet's *cryptography* — the format, the slot, t
 signature — and never for its consent screen. No human has approved a
 transaction in a browser.
 
+### Gate 6 — the four paths the product does not use
+
+`tools/devnet-extended-paths.mjs`, run 2026-10-09, **0 failed checks**, two
+independent scenarios both complete. Nine artifacts committed under
+[`../evidence/extended-paths/`](../evidence/extended-paths/).
+
+This gate closes the four rows that Gate 5 left `UNVERIFIED`. It proves the
+*program* handles them. It does not prove the *application* uses them — the
+script drives the program directly with keypairs this repository holds, and the
+app calls none of these instructions. Every artifact says so in its own
+`doesNotProve` field.
+
+**Scenario A** — channel `DsHVQRkN9vcKAQqpR5YVVzz2AT5mzS8XNEK5ocUW9hq4`,
+opened with a non-empty distribution plan, deposit `50000000`, metered `3333330`
+at a rate of `333333` per tick.
+
+| Claim | Status |
+|---|---|
+| `topUp` (discriminator 3) moves the deposit without disturbing the plan | **PROVEN** — deposit `50000000 → 60000000`, escrow ATA `0 → 60000000`, both read back after the transaction; `distribution_hash` byte-identical before and after, so a top-up cannot be used to swap the split after the fact |
+| `open` accepts a plan with actual recipients | **PROVEN** — `open` committed SHA-256 `6ce22fab…f66596`, and `distribute`'s revealed preimage hashed to the same value. This is the first time the `recipient(32) ‖ bps(u16)` wire layout has been executed on chain rather than only unit-tested. |
+| The recipient split **floors** each share rather than rounding | **PROVEN** — alpha received `499999`, which is `floor(3333330 × 1500 / 10000)` = `floor(499999.5)`. Rounding would have paid `500000`. |
+| The payee is paid its own basis-point share, not "whatever is left" | **PROVEN** — payee received `2666664` = `floor(3333330 × 8000 / 10000)` = `floor(2666664.0)`, computed from the channel's own fields rather than from the amounts the script asked for |
+| Residual flooring dust is swept to the treasury | **PROVEN** — treasury received `1` atomic unit, and the payout accounts sum to `deposit − 0`: `56666670 + 2666664 + 499999 + 166666 + 1 = 60000000` exactly |
+| The payer's refund is `deposit − settled`, not `deposit − sum(shares)` | **PROVEN** — `60000000 − 3333330 = 56666670`, received exactly |
+| The channel ends `Distributed`, read back rather than assumed | **PROVEN** — status byte 3 reads `3` after the distribution, both in the artifact and in an independent raw `getAccountInfo` |
+
+The rate was chosen to make the rounding rule observable. At the application's
+`250000` every product of the split divides exactly, all five remainders are
+zero, and the run would have proved nothing about rounding in either direction.
+
+**Scenario B** — channel `2bYU3Tgogs5WbvdErtVFeL12d1YeMaWx6Lw7rRGqT39S`, grace
+period `10` seconds, metered `1250000`.
+
+| Claim | Status |
+|---|---|
+| `requestClose` (discriminator 5) moves the channel to Closing | **PROVEN** — status `0 → 2`, with `closure_started_at` stamped |
+| The grace period is enforced, and `seal` before it fails | **PROVEN** — `seal` sent 2.3s into a 10s grace period was rejected, and the status read back from chain stayed `2` rather than advancing |
+| The guard that refused it is the clock, not a malformed instruction | **PROVEN** — the *identical* instruction succeeded once the period elapsed, with the watermark unchanged at `1250000` across both attempts. The clock is the only variable. |
+| `seal` is not gated on the payee's or the signer's cooperation | **PROVEN** — its account list is exactly one account, the channel, with no signer of any kind, so nothing in the program consults a signature before sealing. The fee was paid by this repository's payer keypair, which is a property of Solana rather than of this program: any keypair can pay it. |
+| `withdrawPayer` (discriminator 8) refunds the unspent deposit | **PROVEN** — payer ATA `+48750000` = `deposit − settled`, read back from chain, with `payer_withdrawn_at` stamped `1791518378` and the escrow falling by the same amount |
+| The refund is a one-time gate, not a double-dip | **PROVEN** — the subsequent `distribute` paid the payer **`0`**, while the payee still received its `1250000` from the same call |
+
+**Read back from raw chain state, outside this repository's code.** Both
+channels still exist on Devnet, and a plain `getAccountInfo` at
+`commitment: finalized` — no keypair, no code from `tools/` — returns 256 bytes
+owned by the program with status byte 3 (`Distributed`) for both. Two of those
+bytes contradict what a reasonable reader would assume:
+
+| Claim | Status |
+|---|---|
+| `seal` clears `closure_started_at` | **PROVEN** — the stamp `requestClose` wrote (`1791518362`) reads `0` once the channel is Sealed, both in the artifact and in an independent read afterwards. The grace clock is not left ticking on a channel whose grace period no longer applies. |
+| A sealed `distribute` does not advance `payout_watermark` | **PROVEN** — it reads `0` after a distribution that paid every recipient. The channel is terminal, so there is no later payout for a watermark to gate. This is the opposite of the natural expectation and is taken from the chain rather than reasoned about. |
+
+**A defect this gate found, and where it was caught.** The first committed
+versions of `03-split-distributed.json` and `09-timeout-distributed.json`
+reported channel fields decoded from snapshots taken *before* their
+transaction — `03` filed a pre-`distribute` channel under the bare name
+`channel` (status `1 Sealed`, in a file about a distribution that had already
+run), and `09` filed `payerWithdrawnAt` from before `withdrawPayer` had set it,
+saying `0` where the chain says `1791518378`.
+
+Both values were real reads of the wrong moment under names claiming a different
+one. That is harder to catch than a fabricated number, because nothing is
+internally inconsistent. It surfaced only by reading the channel from raw RPC
+and comparing — which is the argument for doing that on every gate rather than
+trusting the artifact's own account of itself. Both artifacts now carry
+`channelBefore` and `channelAfter` as separate fields, and both scenarios assert
+that the post-transaction read says `Distributed`.
+
+**The named error.** The refusal carries `custom program error: 0x899`, which is
+`2201`, `SealGracePeriodNotElapsed` — read out of
+`program/payment_channels/src/errors.rs`, under `// ix seal`. That citation is
+corroboration and is treated as such. What proves the claim is the shape of the
+run: the same bytes succeed once the clock moves. A name this repository typed
+into a lookup table is not a chain observation.
+
+**A correction this gate forced.** The first version of `CHANNEL_ERRORS` named
+`261`, `262` and `264` from memory. Reading the source showed three were wrong:
+`261` is `InvalidSplitConfig`, not a share error; `263` is `DuplicateRecipient`,
+not `262`; `264` is `DistributionAmountOverflow`, not a count error. `260`,
+`262` and `264` all carry the *identical* upstream message
+(`num_recipients outside [0, 32]`), so the choice between them for a
+count violation is inference from the name rather than a traced fact, and the
+source comment says so rather than implying otherwise.
+
 ### Still not proven
 
 | Claim | Status |
 |---|---|
-| The unused remainder is recoverable via `withdrawPayer` (discriminator 8) | UNVERIFIED — the SEALED `distribute` path already refunds the payer directly, which is what Gate 3 proves. `withdrawPayer` is the *pull* path and is only needed before a full close. Not exercised. |
-| `requestClose` / `seal` (the timeout path, discriminators 5 and 6) | UNVERIFIED — the cooperative `settleAndSeal` path was used instead, so the payer-protection timeout is untested, in the tooling and in the application alike |
-| `topUp` (discriminator 3) | UNVERIFIED |
-| A distribution plan with actual recipients | UNVERIFIED — every run so far used an empty plan, including through the application. The `recipient(32) || bps(u16)` layout is unit-tested but has never been executed on chain. |
-| The wallet handshake has been exercised by a human in a browser | UNVERIFIED — the largest remaining gap. Gate 5 stands in for a wallet's cryptography, not for Phantom's consent screen, and the one path CI structurally cannot cover is the one that has never been run. |
+| The wallet handshake has been exercised by a human in a browser | UNVERIFIED — the largest remaining gap, and the one path CI structurally cannot cover. Gate 5 stands in for a wallet's cryptography, not for Phantom's consent screen. |
+| The four extended-path instructions are reachable from the application | UNVERIFIED — and deliberately so. Gate 6 drove the *program*, not the product. The app opens every channel with an empty plan and imports none of `topUp`, `requestClose`, `seal`, `withdrawPayer`, or a non-empty distribution plan. A judge cannot reach them by clicking anything. |
+| The `seal` grace guard's error code is what the program names it | OBSERVED — the name is transcribed from `errors.rs` and matches the hex the cluster returned, which is strong corroboration but is a coincidence of two sources rather than a proof that the program intended that name for that guard |
+| The split holds for more than two recipients, or for shares summing to over 10000 bps | UNVERIFIED — both recipients-plus-payee plans sum to exactly 10000 bps and two recipients is the smallest interesting case; the overflow guards (errors 261, 264) are unit-tested but have never been provoked on chain |
 
 ## Two things the verifier got wrong first
 

@@ -6,27 +6,27 @@
   "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
   "payerPublicKey": "8XGW8giZJUvDMZPrFP3vufBn3zwc7GHgmHCH28e9HUQQ",
   "providerPublicKey": "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T",
-  "writtenAt": "2026-10-08T16:54:01.716Z",
+  "writtenAt": "2026-10-09T23:03:09.803Z",
   "clockNote": "writtenAt is the runner's clock, not a blockchain timestamp",
   "verificationMethod": "the channel and both token accounts were re-read after the transaction: the deposit field, the escrow balance and the payer's balance must all move by exactly the topped-up amount",
   "scenario": "split",
-  "channel": "7xytSvF1KzrASPyPttbaW7UNJQM1nxqoJ9KY7VxGurqo",
-  "transactionSignature": "2JMuzeABWKmJJN1WC7J1YnccYwVCxKQ9MY1jG3xBsVHT2knqkLPNCzxWys6nRaZtAycRfPQoJrki8jKNrdAy1DpL",
-  "explorer": "https://explorer.solana.com/tx/2JMuzeABWKmJJN1WC7J1YnccYwVCxKQ9MY1jG3xBsVHT2knqkLPNCzxWys6nRaZtAycRfPQoJrki8jKNrdAy1DpL?cluster=devnet",
+  "channel": "DsHVQRkN9vcKAQqpR5YVVzz2AT5mzS8XNEK5ocUW9hq4",
+  "transactionSignature": "3i7QZa9NG2MokandKCwqHL93qZ5quUDhTPXr2TdAhqZP3BWxhMw3oVu1cNHF8Z9U9TDyMu4CMLLSpPCCCh2dsqvP",
+  "explorer": "https://explorer.solana.com/tx/3i7QZa9NG2MokandKCwqHL93qZ5quUDhTPXr2TdAhqZP3BWxhMw3oVu1cNHF8Z9U9TDyMu4CMLLSpPCCCh2dsqvP?cluster=devnet",
   "observed": {
     "depositBefore": "50000000",
     "depositAfter": "60000000",
     "escrowBefore": "50000000",
     "escrowAfter": "60000000",
-    "payerBalanceBefore": "999364333340",
-    "payerBalanceAfter": "999354333340",
+    "payerBalanceBefore": "999350583350",
+    "payerBalanceAfter": "999340583350",
     "distributionHashBefore": "6ce22fabe45b07fede13458e0e024ce0b32face9437d5180d357b3eb16f66596",
     "distributionHashAfter": "6ce22fabe45b07fede13458e0e024ce0b32face9437d5180d357b3eb16f66596"
   },
   "expected": {
     "depositAfter": "60000000",
     "escrowAfter": "60000000",
-    "payerBalanceAfter": "999354333340",
+    "payerBalanceAfter": "999340583350",
     "distributionHashAfter": "6ce22fabe45b07fede13458e0e024ce0b32face9437d5180d357b3eb16f66596"
   }
 }

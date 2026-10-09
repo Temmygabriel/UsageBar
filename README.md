@@ -154,7 +154,7 @@ measurement. See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
 ## Tests
 
 ```bash
-npm run test        # 94 tests across 4 files
+npm run test        # 110 tests across 4 files
 npm run typecheck
 ```
 
@@ -178,10 +178,15 @@ node tools/probe-deployed-app.mjs          # needs nothing installed
 
 ## Evidence
 
-[`evidence/`](evidence/) holds two kinds of proof, and the distinction matters:
+[`evidence/`](evidence/) holds three kinds of proof, and the distinction matters:
 
 - [`evidence/canonical-run/`](evidence/canonical-run/) — twelve artifacts
-  proving the **protocol** works, produced by the tooling.
+  proving the **protocol** works along the path this product uses, produced by
+  the tooling.
+- [`evidence/extended-paths/`](evidence/extended-paths/) — nine artifacts
+  proving the **protocol** works along the four paths this product does not
+  use: `topUp`, a distribution plan with real recipients, and the
+  `requestClose` → `seal` → `withdrawPayer` timeout escape hatch. Also tooling.
 - [`evidence/deployed-app-probe.json`](evidence/deployed-app-probe.json) —
   proving the **deployed application** works, produced over HTTP.
 
@@ -193,9 +198,23 @@ node tools/probe-deployed-app.mjs          # needs nothing installed
   deployment probe signs and lands a real `open` transaction against the live
   server, but it signs it itself — it stands in for a wallet's cryptography,
   never for Phantom's consent screen.
-- Four protocol paths are unexercised: `withdrawPayer`, `requestClose`/`seal`,
-  `topUp`, and a distribution plan with actual recipients. None is on this
-  demo's path; all are listed in [`docs/CLAIM_STATUS.md`](docs/CLAIM_STATUS.md).
+- **Every protocol instruction is now exercised on Devnet, but not by the
+  application.** The four paths the canonical run never touched were driven
+  directly by [`tools/devnet-extended-paths.mjs`](tools/devnet-extended-paths.mjs)
+  — see [`evidence/extended-paths/`](evidence/extended-paths/). A proven
+  instruction is not an integrated one: the app still opens channels with an
+  empty plan and calls none of them. The distinction is drawn in
+  [`docs/CLAIM_STATUS.md`](docs/CLAIM_STATUS.md).
+- The `seal` grace guard's refusal rests on the shape of the run — the identical
+  instruction succeeds once the clock advances — rather than on the error name,
+  which is transcribed from the program's source and is corroboration only.
+- **The evidence has been wrong once.** The first committed extended-paths
+  artifacts reported channel state read *before* their own transaction, under
+  names claiming otherwise. Nothing was fabricated — they were true reads of
+  the wrong moment — and they were caught by re-reading both channels over raw
+  `getAccountInfo` rather than by trusting the artifacts. The fix and the
+  reasoning are recorded in [`evidence/README.md`](evidence/README.md) rather
+  than quietly amended.
 - Hackathon-scale prototype, not production infrastructure.
 - Not a bank, payment processor, escrow service, or billing platform.
 
@@ -208,6 +227,7 @@ Nothing here needs to be taken on trust.
 | Typecheck, test, build | Automatic on every push |
 | Re-check the evidence against the chain | Actions → **Devnet** → `verify-canonical` (sends no transaction, needs no keypair) |
 | Re-run the canonical run | Actions → **Devnet** → `canonical-run` |
+| Re-run the extended-paths run | Actions → **Devnet** → `extended-paths` (opens two real channels on Devnet) |
 | Probe the live deployment | Actions → **Probe deployment** (needs no secret), or `node tools/probe-deployed-app.mjs` |
 
 Heavy work runs in GitHub Actions, because the development machine has about

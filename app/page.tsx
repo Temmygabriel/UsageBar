@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
+
 import UsageTab from "./components/UsageTab";
 import styles from "./page.module.css";
 
 import { abbreviate, explorerTransactionUrl } from "../lib/session";
 import { useSession, type Notice } from "../lib/use-session";
+import { getWalletOptions, type WalletId, type WalletOption } from "../lib/wallet";
 
 /**
  * The UsageBar landing page.
@@ -61,6 +64,12 @@ const EVIDENCE = [
   },
 ] as const;
 
+const WALLET_DOWNLOAD_URLS: Record<WalletId, string> = {
+  solflare: "https://www.solflare.com/download/",
+  phantom: "https://phantom.app/download",
+  okx: "https://web3.okx.com/download",
+};
+
 /** Map a notice tone onto a banner style. */
 function bannerClass(tone: Notice["tone"]): string {
   const base = styles.banner;
@@ -84,6 +93,8 @@ function ratePerSecond(atomicPerSecond: string, decimals: number): string {
 
 export default function Page() {
   const { state, actions } = useSession();
+  const [walletPickerOpen, setWalletPickerOpen] = useState(false);
+  const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
   const { wallet, service, channel, facts, updates, notice, busy, balances, settlementProof } = state;
 
   const decimals = service?.decimals ?? 6;
@@ -112,13 +123,31 @@ export default function Page() {
   /**
    * The next real step, named. Order matters: no wallet, then no funds, then open.
    */
+  const showWalletPicker = () => {
+    setWalletOptions(getWalletOptions());
+    setWalletPickerOpen(true);
+  };
+
+  const selectWallet = (id: WalletId) => {
+    setWalletPickerOpen(false);
+    void actions.connect(id);
+  };
+
   const openLabel = !connected
-    ? "Connect wallet"
+    ? wallet.status === "connecting"
+      ? "Cancel connection"
+      : "Choose wallet"
     : shortOnFunds
       ? "Get test funds"
       : "Open tab";
 
-  const onPrimary = !connected ? actions.connect : shortOnFunds ? actions.fund : actions.open;
+  const onPrimary = !connected
+    ? wallet.status === "connecting"
+      ? actions.cancelConnect
+      : showWalletPicker
+    : shortOnFunds
+      ? actions.fund
+      : actions.open;
 
   const blockedReason = shortOnFunds
     ? `Your wallet needs Devnet SOL and ${unit} before it can fund a deposit. Pressing the ` +
@@ -161,19 +190,107 @@ export default function Page() {
                   Disconnect
                 </button>
               </>
+            ) : wallet.status === "connecting" ? (
+              <>
+                <span className={`chip chip-accent ${styles.walletChip}`} role="status" aria-live="polite">
+                  Connecting to {wallet.name ?? "wallet"}…
+                </span>
+                <button
+                  type="button"
+                  className="button button-quiet"
+                  onClick={actions.cancelConnect}
+                  disabled={busy}
+                >
+                  Cancel
+                </button>
+              </>
             ) : (
               <button
                 type="button"
                 className="button button-quiet"
-                onClick={actions.connect}
-                disabled={busy || wallet.status === "connecting"}
+                onClick={showWalletPicker}
+                disabled={busy}
               >
-                {wallet.status === "connecting" ? "Connecting…" : "Connect wallet"}
+                Choose wallet
               </button>
             )}
           </div>
         </div>
       </header>
+
+      {walletPickerOpen && (
+        <div
+          className={styles.walletPickerBackdrop}
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setWalletPickerOpen(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setWalletPickerOpen(false);
+          }}
+        >
+          <section
+            className={styles.walletPicker}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wallet-picker-title"
+            aria-describedby="wallet-picker-description"
+          >
+            <div className={styles.walletPickerHeader}>
+              <div>
+                <p className="eyebrow">SOLANA DEVNET</p>
+                <h2 id="wallet-picker-title">Choose your wallet</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.walletPickerClose}
+                onClick={() => setWalletPickerOpen(false)}
+                aria-label="Close wallet chooser"
+              >
+                ×
+              </button>
+            </div>
+            <p id="wallet-picker-description" className={styles.walletPickerDescription}>
+              Connect with a wallet you already use. UsageBar will request approval in that wallet;
+              it never receives your recovery phrase or private key.
+            </p>
+            <div className={styles.walletOptions}>
+              {walletOptions.map((option) => (
+                <div className={styles.walletOption} key={option.id}>
+                  <div className={styles.walletOptionCopy}>
+                    <strong>{option.name}</strong>
+                    <span>
+                      {option.installed ? "Detected in this browser" : "Extension not detected"}
+                    </span>
+                  </div>
+                  {option.installed ? (
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={() => selectWallet(option.id)}
+                    >
+                      Connect
+                    </button>
+                  ) : (
+                    <a
+                      className={styles.walletInstallLink}
+                      href={WALLET_DOWNLOAD_URLS[option.id]}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Install ↗
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className={styles.walletPickerNote}>
+              Before opening a tab, set the selected wallet network to <strong>Devnet</strong>.
+              Only test tokens are used; they have no real-world value.
+            </p>
+          </section>
+        </div>
+      )}
 
       <main className={styles.main} id="main-content">
         <section className={styles.proposition} aria-labelledby="hero-title">

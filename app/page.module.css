@@ -141,6 +141,3 @@
   .howInner, .footerInner { padding: 32px 16px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; }
-}

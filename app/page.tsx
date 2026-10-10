@@ -256,7 +256,7 @@ export default function Page() {
             </p>
             <div className={styles.walletOptions}>
               {walletOptions.map((option) => (
-                <div className={styles.walletOption} key={option.id}>
+                <div className={styles.walletOption} data-wallet-id={option.id} key={option.id}>
                   <div className={styles.walletOptionCopy}>
                     <strong>{option.name}</strong>
                     <span>

@@ -511,7 +511,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     setNotice({ tone: "info", text: "Groq is reviewing the contract. No usage voucher is issued unless the AI returns a valid review." });
     try {
       const result = await runMeteredExtraction(current.address, previous.toString(), voucherSignatureRef.current, documentText);
-      if (!result.advanced || result.voucherSignature === null) throw new Error(result.reason ?? "The service did not issue a signed usage voucher.");
+      if (!result.advanced || result.voucherSignature === null || result.extraction === null) throw new Error(result.reason ?? "The service did not issue a signed usage voucher.");
       const next = BigInt(result.cumulative);
       const count = taskCount + 1;
       usageAmountRef.current = next;

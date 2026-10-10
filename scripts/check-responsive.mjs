@@ -122,7 +122,7 @@ try {
       });
     }
 
-    const phantomOption = dialog.locator(".walletOption").filter({ hasText: /^Phantom/ });
+    const phantomOption = dialog.locator(".walletOption").filter({ hasText: "Phantom" });
     await phantomOption.getByRole("button", { name: "Connect", exact: true }).click();
     if (mode === "hang") {
       // The never-settling provider keeps the pending state open long enough to
@@ -213,7 +213,7 @@ try {
 
   const standardDialog = standardPage.getByRole("dialog", { name: "Choose your wallet" });
   await standardDialog.waitFor({ state: "visible", timeout: 3000 });
-  const solflareRow = standardDialog.locator(".walletOption").filter({ hasText: /^Solflare/ });
+  const solflareRow = standardDialog.locator(".walletOption").filter({ hasText: "Solflare" });
   if (!(await solflareRow.innerText()).includes("Detected in this browser")) {
     throw new Error("Wallet Standard Solflare registration was not detected.");
   }

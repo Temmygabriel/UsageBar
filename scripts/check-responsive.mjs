@@ -166,6 +166,68 @@ try {
   await checkWalletPromptRecovery("reject");
   await checkWalletPromptRecovery("hang");
 
+  // Verify that a modern Solflare Wallet Standard registration can be discovered
+  // through the official app-ready -> register-wallet handshake.
+  const standardPage = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+  });
+  standardPage.on("pageerror", error => pageErrors.push(error.message));
+  await standardPage.addInitScript(`
+    (() => {
+      const connect = async () => {
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        const error = new Error("User rejected the request");
+        Object.defineProperty(error, "code", { value: 4001 });
+        throw error;
+      };
+      const solflare = {
+        name: "Solflare",
+        chains: ["solana:devnet"],
+        accounts: [],
+        features: {
+          "standard:connect": { version: "1.0.0", connect },
+          "solana:signAndSendTransaction": {
+            version: "1.0.0",
+            signAndSendTransaction: async () => [],
+          },
+          "standard:disconnect": {
+            version: "1.0.0",
+            disconnect: async () => {},
+          },
+        },
+      };
+
+      // The wallet side listens for app-ready, then dispatches a
+      // register-wallet event whose detail is the registration callback.
+      window.addEventListener("wallet-standard:app-ready", () => {
+        window.dispatchEvent(new CustomEvent("wallet-standard:register-wallet", {
+          detail: (api) => api.register(solflare),
+        }));
+      });
+    })();
+  `);
+  await standardPage.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await standardPage.locator("#hero-title").waitFor({ state: "visible", timeout: 15000 });
+  await standardPage.getByRole("button", { name: "Choose wallet" }).first().click();
+
+  const standardDialog = standardPage.getByRole("dialog", { name: "Choose your wallet" });
+  await standardDialog.waitFor({ state: "visible", timeout: 3000 });
+  const solflareRow = standardDialog.locator(".walletOption").filter({ hasText: /^Solflare/ });
+  if (!(await solflareRow.innerText()).includes("Detected in this browser")) {
+    throw new Error("Wallet Standard Solflare registration was not detected.");
+  }
+  await solflareRow.getByRole("button", { name: "Connect", exact: true }).click();
+  await standardPage.getByText(/Solflare connection was cancelled/).waitFor({
+    state: "visible",
+    timeout: 3000,
+  });
+  await standardPage.getByRole("button", { name: "Choose wallet" }).first().waitFor({
+    state: "visible",
+    timeout: 3000,
+  });
+  await standardPage.close();
+
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(() => document.fonts.ready);

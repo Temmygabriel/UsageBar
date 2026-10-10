@@ -231,7 +231,29 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
 
     setWallet({ status: "connecting", address: null, name: walletName });
     try {
-      const connected = await connectWallet(provider, walletName);
+      const connected = await new Promise<ConnectedWallet>((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          reject(
+            new Error(
+              `${walletName} did not respond within 60 seconds. UsageBar has reset the connection; dismiss the wallet prompt and try again.`,
+            ),
+          );
+        }, 60_000);
+
+        // Some extensions leave the request pending if their popup is simply
+        // closed. The user can cancel immediately in UsageBar; this timeout is
+        // the final recovery path if the provider never resolves or rejects.
+        connectWallet(provider, walletName).then(
+          (value) => {
+            window.clearTimeout(timeout);
+            resolve(value);
+          },
+          (error: unknown) => {
+            window.clearTimeout(timeout);
+            reject(error);
+          },
+        );
+      });
       // The browser extension prompt cannot be dismissed by a page script.
       // If the user cancelled in UsageBar while it was open, ignore a late
       // success/rejection rather than resurrecting the connection state.

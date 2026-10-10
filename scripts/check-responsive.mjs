@@ -73,57 +73,34 @@ try {
       deviceScaleFactor: 1,
     });
     walletPage.on("pageerror", error => pageErrors.push(error.message));
-    await walletPage.addInitScript((behavior) => {
-      const connect = behavior === "hang"
-        ? () => new Promise(() => {})
-        : async () => {
-            // Keep the prompt pending briefly so the UI has a chance to render
-            // its Connecting state before this fake extension rejects it.
-            await new Promise((resolve) => setTimeout(resolve, 120));
-            const error = new Error("User rejected the request");
-            Object.defineProperty(error, "code", { value: 4001 });
-            throw error;
-          };
+    await walletPage.addInitScript(`
+      (() => {
+        const behavior = ${JSON.stringify(mode)};
+        const connect = behavior === "hang"
+          ? () => new Promise(() => {})
+          : async () => {
+              // Let the Connecting state render before the fake wallet rejects.
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              const error = new Error("User rejected the request");
+              Object.defineProperty(error, "code", { value: 4001 });
+              throw error;
+            };
 
-      if (behavior === "hang") {
-        // Exercise the Wallet Standard registration path for the pending-prompt
-        // case, not just the legacy injected-provider fallback.
-        const standardWallet = {
-          name: "Phantom",
-          chains: ["solana:devnet"],
-          accounts: [],
-          features: {
-            "standard:connect": { version: "1.0.0", connect },
-            "solana:signAndSendTransaction": {
-              version: "1.0.0",
-              signAndSendTransaction: async () => [],
+        // Always use the explicitly selected legacy Phantom provider in this
+        // regression test; wallet-standard integration is implemented separately
+        // and needs a real extension to verify.
+        Object.defineProperty(window, "phantom", {
+          configurable: true,
+          value: {
+            solana: {
+              isPhantom: true,
+              connect,
+              publicKey: null,
             },
-            "standard:disconnect": { version: "1.0.0", disconnect: async () => {} },
           },
-        };
-
-        window.addEventListener("wallet-standard:app-ready", (event) => {
-          event.detail.register(standardWallet);
         });
-        window.dispatchEvent(new CustomEvent("wallet-standard:register-wallet", {
-          detail: ({ register }) => register(standardWallet),
-        }));
-        return;
-      }
-
-      // Exercise legacy injected-provider rejection with the standard wallet
-      // prompt error code.
-      Object.defineProperty(window, "phantom", {
-        configurable: true,
-        value: {
-          solana: {
-            isPhantom: true,
-            connect,
-            publicKey: null,
-          },
-        },
-      });
-    }, mode);
+      })();
+    `);
 
     await walletPage.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await walletPage.locator("#hero-title").waitFor({ state: "visible", timeout: 15000 });

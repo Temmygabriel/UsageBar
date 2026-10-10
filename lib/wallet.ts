@@ -42,6 +42,20 @@ export interface WalletAccount {
   readonly raw: unknown;
 }
 
+export type WalletId = "solflare" | "phantom" | "okx";
+
+export interface WalletOption {
+  readonly id: WalletId;
+  readonly name: string;
+  readonly installed: boolean;
+}
+
+export const SUPPORTED_WALLETS: readonly Omit<WalletOption, "installed">[] = [
+  { id: "solflare", name: "Solflare" },
+  { id: "phantom", name: "Phantom" },
+  { id: "okx", name: "OKX Wallet" },
+];
+
 export interface ConnectedWallet {
   readonly address: string;
   readonly walletName: string;
@@ -59,6 +73,9 @@ export interface ConnectedWallet {
  */
 export interface WalletProvider {
   readonly isPhantom?: boolean;
+  readonly isSolflare?: boolean;
+  readonly isOKXWallet?: boolean;
+  readonly isOkxWallet?: boolean;
   readonly publicKey?: { toString(): string } | null;
   readonly features?: Record<string, unknown>;
   connect?(options?: unknown): Promise<{ publicKey?: { toString(): string } }>;
@@ -72,24 +89,80 @@ interface FeatureCall {
   (input: unknown): Promise<unknown>;
 }
 
-/** Find an injected wallet, preferring Phantom and falling back to any `window.solana`. */
-export function detectProvider(): WalletProvider | null {
-  if (typeof window === "undefined") return null;
-  const anyWindow = window as unknown as {
-    phantom?: { solana?: WalletProvider };
-    solana?: WalletProvider;
-  };
-  return anyWindow.phantom?.solana ?? anyWindow.solana ?? null;
+type InjectedWindow = Window & {
+  phantom?: { solana?: WalletProvider };
+  solana?: WalletProvider;
+  solflare?: WalletProvider | { solana?: WalletProvider };
+  okxwallet?: { solana?: WalletProvider };
+};
+
+function providerLike(value: unknown): WalletProvider | null {
+  if (value === null || typeof value !== "object") return null;
+  const candidate = value as WalletProvider;
+  return typeof candidate.connect === "function" ||
+    typeof candidate.request === "function" ||
+    candidate.features !== undefined
+    ? candidate
+    : null;
 }
 
-function featureOf(provider: WalletProvider, name: string): FeatureCall | null {
-  const feature = provider.features?.[name];
+/** Resolve one explicitly selected wallet without accidentally using another extension. */
+export function getWalletProvider(id: WalletId): WalletProvider | null {
+  if (typeof window === "undefined") return null;
+  const w = window as InjectedWindow;
+
+  if (id === "phantom") {
+    return providerLike(w.phantom?.solana) ??
+      (w.solana?.isPhantom === true ? providerLike(w.solana) : null);
+  }
+  if (id === "solflare") {
+    const injected = w.solflare;
+    const direct = providerLike(injected);
+    const nested = providerLike((injected as { solana?: WalletProvider } | undefined)?.solana);
+    return nested ?? direct ?? (w.solana?.isSolflare === true ? providerLike(w.solana) : null);
+  }
+  return providerLike(w.okxwallet?.solana) ??
+    ((w.solana?.isOKXWallet === true || w.solana?.isOkxWallet === true)
+      ? providerLike(w.solana)
+      : null);
+}
+
+/** Options shown in the wallet picker; detect each brand independently. */
+export function getWalletOptions(): WalletOption[] {
+  return SUPPORTED_WALLETS.map((wallet) => ({
+    ...wallet,
+    installed: getWalletProvider(wallet.id) !== null,
+  }));
+}
+
+/** Compatibility helper for older callers: resolve Phantom explicitly. */
+export function detectProvider(): WalletProvider | null {
+  return getWalletProvider("phantom");
+}
+
+/** Get a callable method from either a Wallet Standard feature object or a direct function. */
+function featureMethod(
+  provider: WalletProvider,
+  featureName: string,
+  methodName: string,
+): FeatureCall | null {
+  const feature = provider.features?.[featureName];
   if (feature === null || feature === undefined) return null;
-  // Wallet Standard features are objects carrying a `feature` marker and their
-  // callable behaviour; some wallets expose the callable directly.
-  const callable = feature as { feature?: FeatureCall } & Partial<FeatureCall>;
-  if (typeof callable === "function") return callable as FeatureCall;
-  if (typeof callable.feature === "function") return callable.feature;
+  if (typeof feature === "function") return feature as FeatureCall;
+
+  const value = feature as Record<string, unknown>;
+  const method = value[methodName];
+  if (typeof method === "function") {
+    return (input: unknown) => (method as FeatureCall).call(feature, input);
+  }
+  // Support wrappers used by a few Wallet Standard bridge implementations.
+  const wrapped = value.feature;
+  if (wrapped !== null && typeof wrapped === "object") {
+    const nestedMethod = (wrapped as Record<string, unknown>)[methodName];
+    if (typeof nestedMethod === "function") {
+      return (input: unknown) => (nestedMethod as FeatureCall).call(wrapped, input);
+    }
+  }
   return null;
 }
 
@@ -101,8 +174,11 @@ function featureOf(provider: WalletProvider, name: string): FeatureCall | null {
  * carries only a public key. Both are normalised to the same shape so callers
  * never branch on which wallet they are talking to.
  */
-export async function connectWallet(provider: WalletProvider): Promise<ConnectedWallet> {
-  const standardConnect = featureOf(provider, "standard:connect");
+export async function connectWallet(
+  provider: WalletProvider,
+  walletName: string,
+): Promise<ConnectedWallet> {
+  const standardConnect = featureMethod(provider, "standard:connect", "connect");
 
   if (standardConnect !== null) {
     const result = (await standardConnect({})) as {
@@ -117,7 +193,7 @@ export async function connectWallet(provider: WalletProvider): Promise<Connected
     }
     return {
       address: account.address,
-      walletName: provider.isPhantom === true ? "Phantom" : "Wallet",
+      walletName,
       provider,
     };
   }
@@ -171,7 +247,7 @@ export async function signAndSend(
   const failures: string[] = [];
 
   // --- Path 1: Wallet Standard, whole transaction as bytes ------------------
-  const standardSign = featureOf(provider, "solana:signAndSendTransaction");
+  const standardSign = featureMethod(provider, "solana:signAndSendTransaction", "signAndSendTransaction");
   if (standardSign !== null) {
     try {
       const accounts = accountListOf(provider);

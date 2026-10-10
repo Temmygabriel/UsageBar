@@ -133,13 +133,16 @@ function getRegisteredStandardWallets(): readonly StandardWallet[] {
   });
 
   window.addEventListener("wallet-standard:register-wallet", (event: Event) => {
-    const callback = (event as CustomEvent<(app: WalletStandardAppApi) => void>).detail;
-    if (typeof callback === "function") callback(api);
+    // Wallet Standard wallets dispatch this event with a registration callback
+    // in detail. The application passes the registry API to that callback.
+    const register = (event as CustomEvent<(app: WalletStandardAppApi) => void>).detail;
+    if (typeof register === "function") register(api);
   });
 
-  // Wallet Standard wallets that were injected before this page still get a
-  // chance to register when the app announces readiness.
-  window.dispatchEvent(new CustomEvent("wallet-standard:app-ready", { detail: api }));
+  // The standard readiness signal is a plain Event. Wallets that registered
+  // before the page loaded will dispatch their registration callback in
+  // response, which the listener above hands our registry API.
+  window.dispatchEvent(new Event("wallet-standard:app-ready"));
   return standardWallets;
 }
 

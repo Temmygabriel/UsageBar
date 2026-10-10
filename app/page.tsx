@@ -136,7 +136,7 @@ export default function Page() {
   const openLabel = !connected
     ? wallet.status === "connecting"
       ? "Cancel connection"
-      : "Choose wallet"
+      : "Connect wallet"
     : shortOnFunds
       ? "Get test funds"
       : "Open tab";
@@ -211,7 +211,7 @@ export default function Page() {
                 onClick={showWalletPicker}
                 disabled={busy}
               >
-                Choose wallet
+                Connect wallet
               </button>
             )}
           </div>
@@ -239,13 +239,13 @@ export default function Page() {
             <div className={styles.walletPickerHeader}>
               <div>
                 <p className="eyebrow">SOLANA DEVNET</p>
-                <h2 id="wallet-picker-title">Choose your wallet</h2>
+                <h2 id="wallet-picker-title">Connect a wallet</h2>
               </div>
               <button
                 type="button"
                 className={styles.walletPickerClose}
                 onClick={() => setWalletPickerOpen(false)}
-                aria-label="Close wallet chooser"
+                aria-label="Close wallet selection"
               >
                 ×
               </button>
@@ -306,9 +306,9 @@ export default function Page() {
             </h1>
 
             <p className={styles.lede}>
-              <span>Open one payment tab.</span>
-              <span>Let usage build the bill.</span>
-              <span>Settle once at the end.</span>
+              <span>One approval sets a spending limit.</span>
+              <span>Usage adds up while the service runs.</span>
+              <span>Pay for what was used. Get the rest back.</span>
             </p>
 
             <ol className={styles.steps} aria-label="How UsageBar works">
@@ -320,7 +320,7 @@ export default function Page() {
                   <path d="M37 30V40M32 35H42" stroke="white" strokeWidth="2" strokeLinecap="round" />
                 </svg>
                 <h2 className={styles.stepTitle}><span>1.</span> Open a tab</h2>
-                <p>Authorize a maximum amount up front.</p>
+                <p>Approve a cap once. It is not the final charge.</p>
               </li>
               <li className={styles.step}>
                 <svg className={styles.stepIcon} viewBox="0 0 48 48" aria-hidden="true">
@@ -330,7 +330,7 @@ export default function Page() {
                   <rect x="34" y="7" width="7" height="31" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
                 </svg>
                 <h2 className={styles.stepTitle}><span>2.</span> Use the service</h2>
-                <p>Usage is tracked with signed updates.</p>
+                <p>The meter tracks time used in this demo.</p>
               </li>
               <li className={styles.step}>
                 <svg className={styles.stepIcon} viewBox="0 0 48 48" aria-hidden="true">
@@ -338,7 +338,7 @@ export default function Page() {
                   <path d="M18 16H30M18 22H30M18 28H27" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
                 <h2 className={styles.stepTitle}><span>3.</span> Settle once</h2>
-                <p>Pay only for what you used. The rest comes back.</p>
+                <p>Settle the measured amount; return the unused balance.</p>
               </li>
             </ol>
           </section>
@@ -380,17 +380,17 @@ export default function Page() {
             <article className={styles.howStep}>
               <span className={styles.howIndex}>01</span>
               <h3>Open a tab</h3>
-              <p>Connect your wallet and authorize a maximum amount in test tokens. The deposit is held in a real payment channel.</p>
+              <p>Approve a spending cap once. It is held in a Solana payment channel, not charged in full. The service can record many usage updates without an on-chain payment each time.</p>
             </article>
             <article className={styles.howStep}>
               <span className={styles.howIndex}>02</span>
               <h3>Use the service</h3>
-              <p>The demo meter records cumulative usage. Updates are signed, while the usage experience does not require a separate payment transaction for every tick.</p>
+              <p>Here, a simulated camera-rental timer measures seconds used. The same payment pattern can support metered API calls, AI inference, compute, or data delivery.</p>
             </article>
             <article className={styles.howStep}>
               <span className={styles.howIndex}>03</span>
               <h3>Close and settle</h3>
-              <p>The final settlement pays the recorded usage and returns the unused remainder, with the outcome verifiable on Solana Devnet.</p>
+              <p>At close, the provider receives the recorded amount and the unused balance returns to the customer. You can inspect the result on Solana Devnet.</p>
             </article>
           </div>
         </div>

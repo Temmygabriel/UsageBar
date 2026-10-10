@@ -104,9 +104,9 @@ try {
 
     await walletPage.goto(baseUrl, { waitUntil: "domcontentloaded" });
     await walletPage.locator("#hero-title").waitFor({ state: "visible", timeout: 15000 });
-    await walletPage.getByRole("button", { name: "Choose wallet" }).first().click();
+    await walletPage.getByRole("button", { name: "Connect wallet" }).first().click();
 
-    const dialog = walletPage.getByRole("dialog", { name: "Choose your wallet" });
+    const dialog = walletPage.getByRole("dialog", { name: "Connect a wallet" });
     await dialog.waitFor({ state: "visible", timeout: 3000 });
     const chooserText = await dialog.innerText();
     for (const walletName of ["Solflare", "Phantom", "OKX Wallet"]) {
@@ -148,7 +148,7 @@ try {
       });
     }
 
-    await walletPage.getByRole("button", { name: "Choose wallet" }).first().waitFor({
+    await walletPage.getByRole("button", { name: "Connect wallet" }).first().waitFor({
       state: "visible",
       timeout: 3000,
     });
@@ -209,9 +209,9 @@ try {
   `);
   await standardPage.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await standardPage.locator("#hero-title").waitFor({ state: "visible", timeout: 15000 });
-  await standardPage.getByRole("button", { name: "Choose wallet" }).first().click();
+  await standardPage.getByRole("button", { name: "Connect wallet" }).first().click();
 
-  const standardDialog = standardPage.getByRole("dialog", { name: "Choose your wallet" });
+  const standardDialog = standardPage.getByRole("dialog", { name: "Connect a wallet" });
   await standardDialog.waitFor({ state: "visible", timeout: 3000 });
   const solflareRow = standardDialog.locator('[data-wallet-id="solflare"]');
   if (!(await solflareRow.innerText()).includes("Detected in this browser")) {
@@ -222,7 +222,7 @@ try {
     state: "visible",
     timeout: 3000,
   });
-  await standardPage.getByRole("button", { name: "Choose wallet" }).first().waitFor({
+  await standardPage.getByRole("button", { name: "Connect wallet" }).first().waitFor({
     state: "visible",
     timeout: 3000,
   });

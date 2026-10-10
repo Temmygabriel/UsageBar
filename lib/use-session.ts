@@ -489,7 +489,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     if (connected !== null && openTransaction !== null) {
       remember(connected.address, { channel: current.address, openTransaction, usageAtomic: usageAmountRef.current.toString(), voucherSignature: voucherSignatureRef.current, updateCount: taskCount, serviceStarted: true });
     }
-  }, [phase, openTransaction, taskCount, lastExtraction]);
+  }, [phase, openTransaction, taskCount]);
 
   const runUsage = useCallback(async (documentText: string) => {
     const current = channelRef.current;
@@ -521,7 +521,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       setTaskCount(count);
       setLastExtraction(result.extraction);
       setUpdates((items) => [...items, { sequence: count, cumulative: next, voucherSignature: result.voucherSignature! }]);
-      if (openTransaction !== null) remember(connected.address, { channel: current.address, openTransaction, usageAtomic: next.toString(), voucherSignature: result.voucherSignature, updateCount: count, lastExtraction: result.extraction, serviceStarted: true });
+      if (openTransaction !== null) remember(connected.address, { channel: current.address, openTransaction, usageAtomic: next.toString(), voucherSignature: result.voucherSignature, updateCount: count, serviceStarted: true });
       setNotice({ tone: "success", text: `Review ${count} completed. Groq returned a result and the provider signed a cumulative voucher for ${next.toString()} atomic units. No Solana transaction was sent for this request.` });
     } catch (error) {
       setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });

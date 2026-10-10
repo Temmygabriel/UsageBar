@@ -52,14 +52,14 @@ try {
         background = { ...background, loaded: false };
       }
     }
-    const camera = document.querySelector('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]');
+    const documentIcon = document.querySelector('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]');
     return {
       title: document.title,
       heading: document.querySelector("#hero-title")?.innerText?.replace(/\s+/g, " ").trim() ?? null,
       background,
-      cameraIcon: {
-        presentInsideUsageTab: Boolean(camera),
-        outlineOnly: Boolean(camera?.querySelector('[fill="none"][stroke="currentColor"]')),
+      documentIcon: {
+        presentInsideUsageTab: Boolean(documentIcon),
+        outlineOnly: Boolean(documentIcon?.querySelector('[fill="none"][stroke="currentColor"]')),
       },
     };
   });
@@ -128,8 +128,9 @@ try {
       // The never-settling provider keeps the pending state open long enough to
       // assert the selected wallet label and Cancel action deterministically.
       const connectingStatus = walletPage.locator("header [role='status']");
+      await walletPage.waitForFunction(() => (document.querySelector("header [role='status']")?.textContent ?? "").toLowerCase().includes("connecting to phantom"), { timeout: 3000 });
       await connectingStatus.waitFor({ state: "visible", timeout: 3000 });
-      if (!(await connectingStatus.innerText()).includes("Connecting to Phantom")) {
+      if (!(await connectingStatus.innerText()).toLowerCase().includes("connecting to phantom")) {
         throw new Error("Header did not identify the selected wallet while connecting.");
       }
 
@@ -267,8 +268,8 @@ try {
         const rect = node.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.bottom <= window.innerHeight;
       })(),
-      cameraIconCount: document.querySelectorAll('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]').length,
-      simulatedCameraDisclosure: document.body.innerText.includes("Camera usage is simulated"),
+      documentIconCount: document.querySelectorAll('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]').length,
+      groqServiceDisclosure: document.body.innerText.includes("Groq supplies real AI review"),
     }));
 
     const overflow = measurement.documentWidth > width || measurement.bodyWidth > width;
@@ -277,8 +278,8 @@ try {
       && measurement.primaryActionVisibleInFirstViewport
       && measurement.headingText === "Pay for what you actually use."
       && measurement.headingLinesSeparated
-      && measurement.cameraIconCount === 1
-      && measurement.simulatedCameraDisclosure
+      && measurement.documentIconCount === 1
+      && measurement.groqServiceDisclosure
       && !overflow;
 
     const screenshot = `${outputDir}/viewport-${String(width).padStart(4, "0")}.png`;
@@ -295,8 +296,8 @@ try {
           !measurement.primaryActionVisibleInFirstViewport ? "primary action is below the first viewport" : null,
           measurement.headingText !== "Pay for what you actually use." ? `incorrect hero headline text: "${measurement.headingText}"` : null,
           !measurement.headingLinesSeparated ? "hero headline lines are joined or not displayed as separate lines" : null,
-          measurement.cameraIconCount !== 1 ? "outline camera icon is missing or duplicated inside Usage Tab" : null,
-          !measurement.simulatedCameraDisclosure ? "simulated-camera disclosure is missing" : null,
+          measurement.documentIconCount !== 1 ? "outline document icon is missing or duplicated inside Usage Tab" : null,
+          !measurement.groqServiceDisclosure ? "Groq service disclosure is missing" : null,
           overflow ? `horizontal overflow: document=${measurement.documentWidth}, body=${measurement.bodyWidth}, viewport=${width}` : null,
         ].filter(Boolean),
       });

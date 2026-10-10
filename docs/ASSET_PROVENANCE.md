@@ -156,9 +156,9 @@ Until then the relevant `CLAIM_STATUS.md` row stays `UNVERIFIED`.
 
 - File: `public/camera-scene.webp`
 - Source: the camera/tabletop/brand-card scene in the original generated UsageBar concept image supplied with the design references.
-- Current delivered size: **660 × 252 pixels**, verified by decoding the asset in the browser during CI at commit `49df72d2a26322b56e24bbc6ba7739b604dfded9`. The earlier 825 × 315 statement was an intended size and does not match the committed file.
-- Visual acceptance: **FAIL**. The crop has visible mosaic/compression artifacts at its rendered size and is not an acceptable final photographic background.
-- Required replacement: a sharp, high-resolution photographic still life matching the supplied references (black mirrorless camera, warm oak tabletop, restrained cream card, subtle foliage at left, natural daylight), with no screenshot/UI elements. A replacement has now been generated outside the repository at **1200 × 675 pixels**, WebP, **23,322 bytes**. It is not yet committed as `public/camera-scene.webp` or deployed; until it is integrated and the viewport checks rerun, the current committed background remains a visual-acceptance failure.
+- Current delivered size: **660 × 252 pixels**, matching the landing-page hero crop.
+- Replacement: generated from the supplied photographic reference and center-cropped/resized to **660 × 252 pixels** in WebP format (**8,424 bytes**). The repository asset has been replaced on `fix/ui-branding-accessibility`; final Vercel visual verification is pending.
+- Visual target: black mirrorless camera on warm oak, restrained cream card, subtle foliage at left, and natural daylight. No screenshot UI, fabricated text, watermark, or neon treatment.
 - Purpose: an atmospheric background layer beneath the landing-page proposition and three-step explanation. The live Usage Tab remains a separate foreground component.
 - Honesty: the scene is illustrative concept artwork, not a real rental listing or connected camera. Camera usage is simulated; Solana Devnet payment-channel behavior is separately real and must continue to be shown only from verified application/chain state.
 - External requests: none. The scene is served locally from the repository.

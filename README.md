@@ -34,16 +34,13 @@ Claim by claim, including what is *not* proven:
 
 ## 30-second explanation
 
-Opening a tab at a bar is easy: you hand over a card once, drinks get added as
-you go, and you settle once at the end. UsageBar applies that to services that
-charge by usage.
+**UsageBar is a payment layer for services whose final cost depends on how much you use them.** Instead of approving a separate blockchain payment for every second, API call, or delivered unit, a customer approves a spending cap once. Usage is recorded as signed updates, then one final settlement pays for what was used and returns the unused balance.
 
-A customer authorizes a maximum amount once. Usage accumulates through signed
-updates that cost no transaction each. When the session ends, the real amount
-is settled on-chain and the unused remainder goes back to the payer.
+Example: approve a 50 TEST cap; if the session uses 6.25 TEST, the provider receives 6.25 TEST and 43.75 TEST returns to the customer. The 50 TEST is a ceiling, not the amount automatically charged.
 
-The demo service is **camera rental**. It is a demonstration environment, not a
-marketplace.
+**Who might use this pattern?** Providers of metered AI/API access, compute jobs, data downloads or time-based rentals—especially where many small usage events would make one on-chain payment per event slow or cumbersome.
+
+**What this demo actually does:** it simulates a camera-rental timer and meters time. It is not connected to a real camera, rental company, AI API or compute service. The payment-channel settlement is real on Solana Devnet; the TEST tokens have no real-world value. UsageBar demonstrates the payment mechanism, not a live commercial service.
 
 ## Live Demo
 

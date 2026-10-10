@@ -47,14 +47,8 @@ const DEFAULT_TEST_MINT = "6Jpyq8iUszZdZd2z3G9is1nfJh7ZwqbekW9cH2w58hmL";
 /** 50 TEST, matching the ceiling the interface proposes. */
 const DEFAULT_CEILING = 50_000_000n;
 
-/**
- * 0.25 TEST per second of use.
- *
- * Chosen so the meter moves visibly during a demo: the 50 TEST ceiling buys
- * about three and a half minutes of use, which is long enough to watch and
- * short enough to reach a close without waiting.
- */
-const DEFAULT_RATE_PER_SECOND = 250_000n;
+/** One TEST per successfully completed AI contract-review request. */
+const DEFAULT_RATE_PER_REQUEST = 1_000_000n;
 
 /**
  * 50,000,000 lamports = 0.05 SOL per faucet call.
@@ -78,7 +72,7 @@ export interface ServerConfig {
   readonly treasuryOwner: string;
   readonly decimals: number;
   readonly ceilingAtomic: bigint;
-  readonly rateAtomicPerSecond: bigint;
+  readonly rateAtomicPerRequest: bigint;
   readonly gracePeriodSeconds: number;
   readonly solPerWallet: bigint;
   readonly tokensPerWallet: bigint;
@@ -161,7 +155,7 @@ export function loadServerConfig(): ConfigResult {
       treasuryOwner: envOr("TREASURY_OWNER", DEVNET_TREASURY_OWNER),
       decimals: positiveInteger("TEST_MINT_DECIMALS", DEFAULT_DECIMALS),
       ceilingAtomic: positiveBigInt("USAGEBAR_CEILING", DEFAULT_CEILING),
-      rateAtomicPerSecond: positiveBigInt("USAGEBAR_RATE_PER_SECOND", DEFAULT_RATE_PER_SECOND),
+      rateAtomicPerRequest: positiveBigInt("USAGEBAR_RATE_PER_REQUEST", DEFAULT_RATE_PER_REQUEST),
       gracePeriodSeconds: positiveInteger("USAGEBAR_GRACE_PERIOD", 60),
       solPerWallet: positiveBigInt("USAGEBAR_SOL_PER_WALLET", DEFAULT_SOL_PER_WALLET),
       tokensPerWallet: positiveBigInt("USAGEBAR_TOKENS_PER_WALLET", DEFAULT_TOKENS_PER_WALLET),

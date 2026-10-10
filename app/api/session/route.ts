@@ -22,13 +22,13 @@ import type { ServerConfig } from "../../../lib/server/env";
 import {
   jsonError,
   jsonOk,
-  optionalPositiveNumber,
   readJsonBody,
   requireAddress,
   requireString,
   withConfig,
 } from "../../../lib/server/http";
 import { PAYMENT_CHANNELS_PROGRAM } from "../../../tools/lib/protocol.mjs";
+import { extractContractTerms, isGeminiConfigured } from "../../../lib/metered-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,7 +46,8 @@ function describeService(config: ServerConfig) {
     decimals: config.decimals,
     treasuryOwner: config.treasuryOwner,
     ceilingAtomic: config.ceilingAtomic.toString(),
-    rateAtomicPerSecond: config.rateAtomicPerSecond.toString(),
+    rateAtomicPerRequest: config.rateAtomicPerRequest.toString(),
+    aiConfigured: isGeminiConfigured(),
     gracePeriodSeconds: config.gracePeriodSeconds,
   };
 }
@@ -143,7 +144,8 @@ export async function POST(request: Request): Promise<Response> {
         if (address === null) {
           return jsonError(400, '"address" is required to open a tab.');
         }
-        const built = await buildOpenTransaction(config, address);
+        const requestedCeiling = typeof body.ceilingAtomic === "string" && /^\d+$/.test(body.ceilingAtomic) ? BigInt(body.ceilingAtomic) : config.ceilingAtomic;
+        const built = await buildOpenTransaction(config, address, requestedCeiling);
         return jsonOk({
           service: describeService(config),
           // Unsigned, and the payer is the wallet that will sign it.
@@ -159,25 +161,21 @@ export async function POST(request: Request): Promise<Response> {
         if (channel === null) {
           return jsonError(400, '"channel" is required to meter usage.');
         }
-        // The client reports elapsed time; the server decides the amount and
-        // clamps it to the deposit. A caller who sends a huge number only bills
-        // themselves more, and can never exceed what they authorized.
-        const seconds = optionalPositiveNumber(body, "seconds", 3);
-        const result = await commitUsage(config, channel, seconds);
-        return jsonOk({
-          advanced: result.advanced,
-          settled: result.settled,
-          signature: result.signature,
-          reason: result.reason,
-          service: describeService(config),
-        });
+        const previous = typeof body.previousCumulativeAtomic === "string" && /^\d+$/.test(body.previousCumulativeAtomic) ? body.previousCumulativeAtomic : "0";
+        const previousSignature = typeof body.previousVoucherSignature === "string" && body.previousVoucherSignature.length > 0 ? body.previousVoucherSignature : null;
+        const documentText = requireString(body, "documentText");
+        const result = await commitUsage(config, channel, previous, previousSignature);
+        const extraction = await extractContractTerms(documentText);
+        return jsonOk({ ...result, extraction, service: describeService(config) });
       }
 
       case "close": {
         if (channel === null) {
           return jsonError(400, '"channel" is required to close a tab.');
         }
-        const result = await closeChannel(config, channel);
+        const cumulative = typeof body.cumulativeAtomic === "string" && /^\d+$/.test(body.cumulativeAtomic) ? body.cumulativeAtomic : "0";
+        const voucherSignature = typeof body.voucherSignature === "string" && body.voucherSignature.length > 0 ? body.voucherSignature : null;
+        const result = await closeChannel(config, channel, cumulative, voucherSignature);
         return jsonOk({
           sealSignature: result.sealSignature,
           distributeSignature: result.distributeSignature,

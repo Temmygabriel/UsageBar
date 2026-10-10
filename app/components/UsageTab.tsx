@@ -4,6 +4,7 @@ import { formatAmount } from "../../lib/amounts";
 import {
   type ChannelFacts,
   type ProductState,
+  type SettlementProof,
   type UsageUpdate,
   type ValueProvenance,
   abbreviate,
@@ -12,7 +13,6 @@ import {
   explorerTransactionUrl,
   lastConfirmedUpdate,
   meterFraction,
-  unusedRemainder,
 } from "../../lib/session";
 
 import styles from "./UsageTab.module.css";
@@ -44,6 +44,7 @@ export interface UsageTabProps {
   readonly decimals: number;
   readonly provenance: ValueProvenance;
   readonly facts: ChannelFacts | null;
+  readonly settlementProof: SettlementProof | null;
   readonly updates: readonly UsageUpdate[];
   readonly onOpen: () => void;
   readonly onClose: () => void;
@@ -88,6 +89,7 @@ export default function UsageTab({
   decimals,
   provenance,
   facts,
+  settlementProof,
   updates,
   onOpen,
   onClose,
@@ -98,6 +100,7 @@ export default function UsageTab({
   const onChain = provenance === "ON_CHAIN";
 
   const remaining = ceiling > settled ? ceiling - settled : 0n;
+  const displayedRemainder = state === "SETTLED" && settlementProof !== null ? settlementProof.returnedToPayer : remaining;
   const health = describeMeter(settled, ceiling);
   const fraction = meterFraction(settled, ceiling);
 
@@ -124,26 +127,40 @@ export default function UsageTab({
   const canClose = state === "FUNDED" || state === "ACTIVE";
 
   return (
+    <div className={styles.tabStack}>
     <article className={styles.tab} aria-label="Usage tab">
       <header className={styles.head}>
         <span className={styles.tabLabel}>Usage Tab</span>
-        <span className={["chip", chip.tone].filter(Boolean).join(" ")}>
-          {chip.tone === "chip-verified" && <span className="chip-dot" />}
-          {chip.label}
+        <span className={styles.tabNumber}>
+          {facts !== null && onChain ? abbreviate(facts.address, 4, 4) : "PREVIEW"}
         </span>
       </header>
 
-      <div className={styles.perforation} role="presentation" />
-
       <div className={styles.service}>
-        <span className="eyebrow">Service</span>
-        <h2 className={styles.serviceName}>{serviceName}</h2>
-        <p className={styles.serviceMeta}>{serviceMeta}</p>
+        <svg className={styles.cameraIcon} viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M15 12 18 7h12l3 5h3a3 3 0 0 1 3 3v19a3 3 0 0 1-3 3H12a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3h3Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+          <circle cx="24" cy="24" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+          <circle cx="35" cy="17" r="1.5" fill="currentColor" />
+        </svg>
+        <div className={styles.serviceCopy}>
+          <span className="eyebrow">DEMO SERVICE</span>
+          <h2 className={styles.serviceName}>{serviceName}</h2>
+          <p className={styles.serviceMeta}>{serviceMeta}</p>
+          <p
+            className={styles.serviceState}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span className={[styles.stateDot, state === "SETTLED" ? styles.stateDotSuccess : ""].filter(Boolean).join(" ")} aria-hidden="true" />
+            {state === "READY" ? "No active tab yet" : chip.label}
+          </p>
+        </div>
       </div>
 
       <div className={styles.amounts}>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>Authorized</span>
+          <span className={styles.rowLabel}>{onChain ? "Authorized (max)" : "Maximum (proposed)"}</span>
           <span className={[amountClass, styles.rowValueCeiling].join(" ")}>
             {formatAmount(ceiling, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
@@ -151,7 +168,7 @@ export default function UsageTab({
         </div>
 
         <div className={styles.row}>
-          <span className={styles.rowLabel}>Used</span>
+          <span className={styles.rowLabel}>{state === "SETTLED" ? "Settled (used)" : "Used (so far)"}</span>
           <span className={amountClass}>
             {formatAmount(settled, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
@@ -159,9 +176,9 @@ export default function UsageTab({
         </div>
 
         <div className={styles.row}>
-          <span className={styles.rowLabel}>Remaining</span>
+          <span className={styles.rowLabel}>{state === "SETTLED" ? "Returned (unused)" : onChain ? "Remaining" : "Not committed"}</span>
           <span className={amountClass}>
-            {formatAmount(remaining, decimals)}
+            {formatAmount(displayedRemainder, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
           </span>
         </div>
@@ -172,9 +189,10 @@ export default function UsageTab({
           className={styles.meterTrack}
           role="meter"
           aria-valuemin={0}
-          aria-valuemax={Number(ceiling)}
-          aria-valuenow={Number(settled)}
-          aria-label={`Usage: ${formatAmount(settled, decimals)} of ${formatAmount(ceiling, decimals)} ${unitLabel}`}
+          aria-valuemax={100}
+          aria-valuenow={Number((fraction * 100).toFixed(2))}
+          aria-valuetext={`${formatAmount(settled, decimals)} ${unitLabel} used of ${formatAmount(ceiling, decimals)} ${unitLabel} authorized`}
+          aria-label="Usage progress"
         >
           <div
             className={meterFillClass}
@@ -183,10 +201,8 @@ export default function UsageTab({
         </div>
 
         <div className={styles.meterScale}>
-          <span>{Math.round(fraction * 100)}% used</span>
-          <span>
-            {formatAmount(settled, decimals)} / {formatAmount(ceiling, decimals)}
-          </span>
+          <span>{Math.round(fraction * 100)}% used · {confirmed !== null ? `${updates.filter((update) => update.signature !== null).length} signed updates` : "no usage recorded"}</span>
+          <span>{formatAmount(settled, decimals)} / {formatAmount(ceiling, decimals)} {unitLabel}</span>
         </div>
 
         {health === "INCONSISTENT" && (
@@ -197,12 +213,87 @@ export default function UsageTab({
         )}
       </div>
 
-      {!onChain && (
+
+
+      <footer className={styles.foot}>
+        {canOpen && (
+          <>
+            <button type="button" className="button button-block" onClick={onOpen}>
+              <span>{openLabel}</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
+            </button>
+            {blockedReason !== null && <p className={styles.pending}>{blockedReason}</p>}
+          </>
+        )}
+
+        {canClose && (
+          <button type="button" className="button button-block" onClick={onClose}>
+            <span>Close &amp; settle</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
+          </button>
+        )}
+
+        {busy && (
+          <button type="button" className="button button-block" disabled>
+            {state === "OPENING" ? "Opening…" : "Settling…"}
+          </button>
+        )}
+
         <p className={styles.notice}>
-          <strong>Nothing on chain yet.</strong> The ceiling above is the amount you are about to
-          authorize. It is not a deposit, and no channel exists until the opening transaction is
-          confirmed and read back from Solana.
+          {onChain
+            ? "Camera usage is simulated. Payment-channel transactions are real on Solana Devnet; TEST tokens have no real-world value."
+            : "Camera usage is simulated. No deposit is made until you approve the opening transaction. TEST tokens have no real-world value."}
         </p>
+
+        {state === "SETTLED" && (
+          <p className={styles.settledMessage} role="status">
+            <span className="chip-dot" /> Settled on chain — nothing further is owed.
+          </p>
+        )}
+
+        <div className={styles.networkNote}>
+          <span className={styles.networkDot} aria-hidden="true" />
+          <span>SOLANA DEVNET · TEST FUNDS ONLY</span>
+        </div>
+      </footer>
+    </article>
+
+      {state === "SETTLED" && facts !== null && (
+        <section className={styles.settlement} aria-label="Final settlement">
+        <header className={styles.settlementHead}>
+          <h3 className={styles.settlementTitle}>Final settlement</h3>
+          <span className={state === "SETTLED" && facts !== null ? styles.settlementDone : styles.settlementPending}>
+            {state === "SETTLED" && facts !== null ? "Completed" : "After close"}
+          </span>
+        </header>
+
+        <div className={styles.settlementGrid}>
+          <div className={styles.settlementCell}>
+            <span className={styles.settlementLabel}>Authorized</span>
+            <strong className={styles.settlementValue}>
+              {state === "SETTLED" && facts !== null ? formatAmount(facts.deposit, decimals) : "—"}
+            </strong>
+            <span className={styles.settlementHint}>{state === "SETTLED" ? "Deposit verified" : "Final chain state"}</span>
+          </div>
+          <div className={styles.settlementCell}>
+            <span className={styles.settlementLabel}>Settled (used)</span>
+            <strong className={styles.settlementValue}>
+              {state === "SETTLED" && facts !== null ? formatAmount(facts.settled, decimals) : "—"}
+            </strong>
+            <span className={styles.settlementHint}>{state === "SETTLED" && settlementProof !== null ? `${formatAmount(settlementProof.paidToProvider, decimals)} ${unitLabel} paid to provider` : "Confirmed at close"}</span>
+          </div>
+          <div className={styles.settlementCell}>
+            <span className={styles.settlementLabel}>Returned (unused)</span>
+            <strong className={styles.settlementValue}>
+              {state === "SETTLED" && settlementProof !== null ? formatAmount(settlementProof.returnedToPayer, decimals) : "—"}
+            </strong>
+            <span className={styles.settlementHint}>{state === "SETTLED" && settlementProof !== null ? "Returned on chain" : "Verified refund"}</span>
+          </div>
+        </div>
+        <p className={styles.settlementNote}>
+          {state === "SETTLED" && facts !== null
+            ? "Only the amount you used was charged. The rest was returned."
+            : "Settlement amounts appear here after the close is verified on-chain."}
+        </p>
+        </section>
       )}
 
       {onChain && facts !== null && (
@@ -229,79 +320,41 @@ export default function UsageTab({
               {abbreviate(facts.openTransaction, 12, 6)}
             </a>
           </div>
+          {confirmed !== null && confirmed.signature !== null && (
+            <div className={styles.proofRow}>
+              <span className={styles.proofLabel}>Last usage update</span>
+              <a className={styles.proofValue}
+                href={explorerTransactionUrl(confirmed.signature)}
+                target="_blank" rel="noopener noreferrer"
+                title={confirmed.signature}>
+                {abbreviate(confirmed.signature, 9, 6)}
+              </a>
+            </div>
+          )}
+          {settlementProof !== null && (
+            <>
+              <div className={styles.proofRow}>
+                <span className={styles.proofLabel}>Seal &amp; settle</span>
+                <a className={styles.proofValue}
+                  href={explorerTransactionUrl(settlementProof.sealSignature)}
+                  target="_blank" rel="noopener noreferrer"
+                  title={settlementProof.sealSignature}>
+                  {abbreviate(settlementProof.sealSignature, 9, 6)}
+                </a>
+              </div>
+              <div className={styles.proofRow}>
+                <span className={styles.proofLabel}>Distribution &amp; refund</span>
+                <a className={styles.proofValue}
+                  href={explorerTransactionUrl(settlementProof.distributeSignature)}
+                  target="_blank" rel="noopener noreferrer"
+                  title={settlementProof.distributeSignature}>
+                  {abbreviate(settlementProof.distributeSignature, 9, 6)}
+                </a>
+              </div>
+            </>
+          )}
         </div>
       )}
-
-      {state === "SETTLED" && facts !== null && (
-        <section className={styles.settlement} aria-label="Final settlement">
-          <h3 className={styles.settlementTitle}>Final settlement</h3>
-
-          <div className={styles.settlementRow}>
-            <span className={styles.settlementLabel}>Authorized</span>
-            <span className={styles.settlementValue}>
-              {formatAmount(facts.deposit, decimals)}
-            </span>
-          </div>
-          <div className={styles.settlementRow}>
-            <span className={styles.settlementLabel}>Used</span>
-            <span className={styles.settlementValue}>
-              {formatAmount(facts.settled, decimals)}
-            </span>
-          </div>
-          <div className={styles.settlementRow}>
-            <span className={styles.settlementLabel}>Returned</span>
-            <span className={styles.settlementValue}>
-              {formatAmount(unusedRemainder(facts), decimals)}
-            </span>
-          </div>
-        </section>
-      )}
-
-      <footer className={styles.foot}>
-        {confirmed !== null || pendingCount > 0 ? (
-          <p className={styles.updates}>
-            <span className={styles.updatesCount}>
-              {updates.filter((update) => update.signature !== null).length}
-            </span>
-            <span>signed usage update{updates.length === 1 ? "" : "s"}</span>
-            {pendingCount > 0 && <span className={styles.pending}>· {pendingCount} pending</span>}
-          </p>
-        ) : (
-          <p className={styles.updates}>
-            <span>No usage recorded</span>
-          </p>
-        )}
-
-        {canOpen && (
-          <>
-            <button type="button" className="button button-block" onClick={onOpen}>
-              {openLabel}
-            </button>
-            {blockedReason !== null && (
-              <p className={styles.pending}>{blockedReason}</p>
-            )}
-          </>
-        )}
-
-        {canClose && (
-          <button type="button" className="button button-block" onClick={onClose}>
-            Close &amp; settle
-          </button>
-        )}
-
-        {busy && (
-          <button type="button" className="button button-block" disabled>
-            {state === "OPENING" ? "Opening…" : "Settling…"}
-          </button>
-        )}
-
-        {state === "SETTLED" && (
-          <p className={styles.updates} style={{ color: "var(--success)" }}>
-            <span className="chip-dot" />
-            <span>Settled on chain — nothing further is owed.</span>
-          </p>
-        )}
-      </footer>
-    </article>
+    </div>
   );
 }

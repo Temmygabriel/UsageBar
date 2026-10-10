@@ -65,6 +65,17 @@ export interface ChannelFacts {
   readonly mint: string;
 }
 
+/**
+ * Evidence returned by a successful close request after its on-chain checks.
+ * Amounts are atomic-unit integers measured by the server, not recalculated UI estimates.
+ */
+export interface SettlementProof {
+  readonly sealSignature: string;
+  readonly distributeSignature: string;
+  readonly paidToProvider: bigint;
+  readonly returnedToPayer: bigint;
+}
+
 /** One accepted cumulative usage update. */
 export interface UsageUpdate {
   /** 1-based, for display only. */

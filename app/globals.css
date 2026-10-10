@@ -22,7 +22,7 @@
   /* --- Ink -------------------------------------------------------------- */
   --ink: #1a1815; /* near-black, not pure black: warmer against cream */
   --ink-muted: #55504a;
-  --ink-faint: #8d867b;
+  --ink-faint: #71685d;
 
   /* --- Rules ------------------------------------------------------------ */
   --rule: #ddd5c8; /* warm gray hairline */
@@ -66,7 +66,7 @@
   --space-8: 64px;
   --space-9: 96px;
 
-  --measure: 1180px;
+  --measure: 1440px;
 }
 
 /*
@@ -84,7 +84,7 @@
 
     --ink: #f4efe6;
     --ink-muted: #b8b0a2;
-    --ink-faint: #857e72;
+    --ink-faint: #aaa293;
 
     --rule: #353026;
     --rule-strong: #4a4436;

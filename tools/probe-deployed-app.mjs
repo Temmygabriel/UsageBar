@@ -518,7 +518,7 @@ async function probeFullFlow(wallet, mint, fundedTokens) {
   }
   const cumulative = BigInt(usage.json.cumulative);
   latestVoucherSignature = usage.json.voucherSignature;
-  check(cumulative === BigInt(config?.rateAtomicPerRequest ?? "1000000"), `one successful review costs ${cumulative} atomic units`);
+  check(cumulative === BigInt(built.service.rateAtomicPerRequest), `one successful review costs ${cumulative} atomic units`);
   check(typeof latestVoucherSignature === "string" && /^[0-9a-f]{128}$/i.test(latestVoucherSignature), "the provider returned a 64-byte Ed25519 voucher signature");
   check(typeof usage.json?.extraction?.summary === "string" && usage.json.extraction.summary.length > 0, "Groq returned a structured contract-review summary");
   meterReadings.push({ round: 1, cumulative: cumulative.toString(), voucherSignature: latestVoucherSignature });

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import type { CSSProperties } from "react";
 
 import { formatAmount } from "../../lib/amounts";
@@ -135,14 +134,11 @@ export default function UsageTab({
       </header>
 
       <div className={styles.service}>
-        <Image
-          className={styles.cameraImage}
-          src="/camera-rental.jpg"
-          alt="Illustrative camera for the simulated rental service"
-          width={205}
-          height={130}
-          priority
-        />
+        <svg className={styles.cameraIcon} viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M15 12 18 7h12l3 5h3a3 3 0 0 1 3 3v19a3 3 0 0 1-3 3H12a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3h3Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+          <circle cx="24" cy="24" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+          <circle cx="35" cy="17" r="1.5" fill="currentColor" />
+        </svg>
         <div className={styles.serviceCopy}>
           <span className="eyebrow">DEMO SERVICE</span>
           <h2 className={styles.serviceName}>{serviceName}</h2>

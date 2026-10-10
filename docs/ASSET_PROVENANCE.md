@@ -148,16 +148,15 @@ Until then the relevant `CLAIM_STATUS.md` row stays `UNVERIFIED`.
 |---|---|---|
 | UsageBar brand mark in header | Original inline SVG authored for this repository | Original project asset; no external source |
 | Browser favicon | `app/icon.svg`, original SVG using the same bar/meter motif | Original project asset; no external source |
-| Camera-rental illustration in Usage Tab | Original inline SVG illustration authored for this repository | Original project asset; decorative only |
+| Camera icon inside Usage Tab | Inline SVG authored for this repository | Original project asset; decorative only |
+| Camera scene behind landing hero | `public/camera-scene.webp`, cropped from the saved `UsageBar_Original_Concept_1.png` design reference | Derived from generated concept art; not third-party stock photography |
 | Fonts | Fraunces, IBM Plex Sans, IBM Plex Mono via `next/font` | Existing font setup retained |
 
-The illustration is a visual cue for the simulated camera-rental use case. It is not a claim that the demo has camera hardware integration or live camera telemetry. The interface explicitly says camera usage is simulated and distinguishes that from the real Solana Devnet payment-channel transactions.
+## Landing hero camera scene
 
-
-## Landing UI camera illustration
-
-- File: `public/camera-rental.jpg`
-- Source: tightly cropped and downscaled from the original generated UsageBar visual reference stored with project design assets.
-- Purpose: purely illustrative visual cue for the camera-rental demo; not a claim about a connected camera, inventory listing, or live camera telemetry.
-- Processing: 205 × 130 source crop, converted to optimized JPEG for the website.
-- Status: internally derived design asset; no third-party stock photo or remote request.
+- File: `public/camera-scene.webp`
+- Source: the camera/tabletop/brand-card scene in the original generated UsageBar concept image supplied with the design references.
+- Crop: source region x=0–825, y=590–905 from the 1536 × 1024 concept; downscaled to 660 × 252 and optimized as WebP.
+- Purpose: an atmospheric background layer beneath the landing-page proposition and three-step explanation. The live Usage Tab remains a separate foreground component.
+- Honesty: the scene is illustrative concept artwork, not a real rental listing or connected camera. Camera usage is simulated; Solana Devnet payment-channel behavior is separately real and must continue to be shown only from verified application/chain state.
+- External requests: none. The scene is served locally from the repository.

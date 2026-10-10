@@ -33,7 +33,20 @@
   gap: 40px; align-items: start;
 }
 .leftColumn { min-width: 0; display: flex; flex-direction: column; }
-.proposition { min-width: 0; width: 100%; max-width: none; display: flex; flex-direction: column; align-items: flex-start; }
+.proposition {
+  position: relative; isolation: isolate; min-width: 0; width: 100%; max-width: none;
+  display: flex; flex-direction: column; align-items: flex-start;
+  /* Make room for the camera scene: it is part of the hero composition, not a card image. */
+  padding-bottom: clamp(250px, 23vw, 315px);
+}
+.proposition::after {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  left: -16px; right: -16px; bottom: 0; height: clamp(250px, 23vw, 315px);
+  background-image: url("/camera-scene.webp");
+  background-repeat: no-repeat; background-position: left bottom; background-size: 100% auto;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 0.25) 18%, #000 34%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 0.25) 18%, #000 34%);
+}
 .kicker { display: flex; align-items: center; gap: 20px; margin: 18px 0 22px; color: var(--ink); font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.82rem; font-weight: 500; letter-spacing: 0.13em; }
 .kickerRule { display: inline-block; width: 120px; height: 1px; background: var(--rule-strong); }
 .proposition .display {
@@ -123,6 +136,12 @@
   .network { display: none; }
   .headerActions .button { min-height: 38px; padding: 8px 10px; font-size: 0.74rem; }
   .main { padding: 14px 16px 26px; gap: 32px; }
+  .proposition { padding-bottom: 190px; }
+  .proposition::after {
+    left: -16px; right: -16px; height: 190px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 0.24) 14%, #000 34%);
+    mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 0.24) 14%, #000 34%);
+  }
   .kicker { margin: 12px 0 18px; font-size: 0.72rem; }
   .kickerRule { width: 76px; }
   .proposition .display { font-size: clamp(2.5rem, 10.3vw, 3.9rem); line-height: 0.99; letter-spacing: -0.05em; text-wrap: balance; }

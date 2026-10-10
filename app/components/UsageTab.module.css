@@ -19,14 +19,11 @@
 .tabNumber { color: var(--ink-muted); font-family: var(--font-mono), ui-monospace, monospace; font-size: 0.85rem; letter-spacing: 0.04em; }
 
 .service {
-  display: grid; grid-template-columns: minmax(130px, 190px) minmax(0, 1fr);
-  align-items: center; gap: 24px; min-height: 150px; padding: 22px 30px;
+  display: grid; grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center; gap: 24px; min-height: 132px; padding: 22px 30px;
   border-bottom: var(--hairline) solid var(--rule);
 }
-.cameraImage {
-  display: block; width: 100%; max-width: 190px; height: auto; object-fit: contain;
-  mix-blend-mode: multiply;
-}
+.cameraIcon { display: block; width: 56px; height: 56px; color: var(--ink); }
 .serviceCopy { min-width: 0; }
 .serviceName {
   margin: 7px 0 5px; color: var(--ink); font-family: var(--font-mono), ui-monospace, monospace;
@@ -127,11 +124,11 @@
 }
 @media (max-width: 699px) {
   .head { min-height: 58px; padding: 14px 18px; }
-  .service { grid-template-columns: 104px minmax(0, 1fr); gap: 16px; min-height: 116px; padding: 17px 18px; }
+  .service { grid-template-columns: 42px minmax(0, 1fr); gap: 14px; min-height: 110px; padding: 17px 18px; }
+  .cameraIcon { width: 40px; height: 40px; }
   .serviceName { font-size: clamp(1.05rem, 5.2vw, 1.35rem); letter-spacing: 0; }
   .serviceMeta { font-size: 0.67rem; }
   .serviceState { font-size: 0.69rem; }
-  .cameraImage { max-width: 104px; }
   .amounts { padding: 10px 18px 14px; }
   .row { gap: 10px; padding: 7px 0; }
   .rowLabel { font-size: 0.68rem; }

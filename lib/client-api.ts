@@ -23,7 +23,7 @@ export interface ServiceDescription {
   readonly ceilingAtomic: string;
   readonly rateAtomicPerRequest: string;
   readonly gracePeriodSeconds: number;
-  readonly aiConfigured: boolean;
+  readonly groqConfigured: boolean;
 }
 
 /** A channel account as the server read it. Amounts are decimal strings. */
@@ -147,7 +147,7 @@ export interface UsageResponse
 }
 
 export interface ExtractionResult{readonly documentType:string;readonly summary:string;readonly parties:string[];readonly dates:string[];readonly monetaryTerms:string[];readonly clauses:string[];readonly risks:string[];readonly missingDetails:string[];readonly disclaimer:string;}
-export interface UsageResponse{readonly advanced:boolean;readonly cumulative:string;readonly voucherSignature:string|null;readonly reason:string|null;readonly extraction:ExtractionResult;readonly service:ServiceDescription;}
+export interface UsageResponse{readonly advanced:boolean;readonly cumulative:string;readonly voucherSignature:string|null;readonly reason:string|null;readonly extraction:ExtractionResult|null;readonly service:ServiceDescription;}
 export function runMeteredExtraction(channel:string,previousCumulativeAtomic:string,previousVoucherSignature:string|null,documentText:string):Promise<UsageResponse>{return call<UsageResponse>("/api/session",{method:"POST",body:JSON.stringify({action:"usage",channel,previousCumulativeAtomic,previousVoucherSignature,documentText})});}
 
 export interface CloseResponse {

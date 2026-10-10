@@ -25,10 +25,12 @@ import {
   readJsonBody,
   requireAddress,
   requireString,
+  RequestError,
   withConfig,
 } from "../../../lib/server/http";
 import { PAYMENT_CHANNELS_PROGRAM } from "../../../tools/lib/protocol.mjs";
 import { extractContractTerms, isGroqConfigured } from "../../../lib/metered-service";
+import { compareAndSetMeterUsageState, isMeterStoreConfigured, readMeterUsageState } from "../../../lib/server/meter-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +50,7 @@ function describeService(config: ServerConfig) {
     ceilingAtomic: config.ceilingAtomic.toString(),
     rateAtomicPerRequest: config.rateAtomicPerRequest.toString(),
     groqConfigured: isGroqConfigured(),
+    meterStoreConfigured: isMeterStoreConfigured(),
     gracePeriodSeconds: config.gracePeriodSeconds,
   };
 }
@@ -94,6 +97,10 @@ export async function GET(request: Request): Promise<Response> {
       return jsonOk({ service: describeService(config), channel: null, closed: true });
     }
 
+    const offchainUsage = isMeterStoreConfigured()
+      ? await readMeterUsageState(channelAddress, read.channel.settled.toString()).then((snapshot) => snapshot.state)
+      : null;
+
     return jsonOk({
       service: describeService(config),
       channel: {
@@ -102,6 +109,7 @@ export async function GET(request: Request): Promise<Response> {
         statusName: STATUS_NAMES[read.channel.status] ?? "Unknown",
         bytes: read.bytes,
       },
+      offchainUsage,
     });
   });
 }
@@ -144,6 +152,8 @@ export async function POST(request: Request): Promise<Response> {
         if (address === null) {
           return jsonError(400, '"address" is required to open a tab.');
         }
+        if (!isGroqConfigured()) return jsonError(503, "Groq is not configured. Add GROQ_API_KEY in Vercel before opening a tab.");
+        if (!isMeterStoreConfigured()) return jsonError(503, "Provider-side voucher storage is not configured. Add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel before opening a tab.");
         const requestedCeiling = typeof body.ceilingAtomic === "string" && /^\d+$/.test(body.ceilingAtomic) ? BigInt(body.ceilingAtomic) : config.ceilingAtomic;
         const built = await buildOpenTransaction(config, address, requestedCeiling);
         return jsonOk({
@@ -161,21 +171,73 @@ export async function POST(request: Request): Promise<Response> {
         if (channel === null) {
           return jsonError(400, '"channel" is required to meter usage.');
         }
-        const previous = typeof body.previousCumulativeAtomic === "string" && /^\d+$/.test(body.previousCumulativeAtomic) ? body.previousCumulativeAtomic : "0";
-        const previousSignature = typeof body.previousVoucherSignature === "string" && body.previousVoucherSignature.length > 0 ? body.previousVoucherSignature : null;
+        if (typeof body.previousCumulativeAtomic !== "string" || !/^\d+$/.test(body.previousCumulativeAtomic)) {
+          return jsonError(400, '"previousCumulativeAtomic" must be a decimal atomic-unit string.');
+        }
+        const previousSignature = typeof body.previousVoucherSignature === "string" && body.previousVoucherSignature.length > 0
+          ? body.previousVoucherSignature
+          : null;
+        if (previousSignature !== null && !/^[0-9a-f]{128}$/i.test(previousSignature)) {
+          return jsonError(400, '"previousVoucherSignature" must be a 64-byte Ed25519 signature in hex.');
+        }
         const documentText = requireString(body, "documentText");
-        const result = await commitUsage(config, channel, previous, previousSignature);
-        if (!result.advanced) return jsonOk({ ...result, extraction: null, service: describeService(config) });
+        const channelRead = await readChannel(config, channel);
+        if (channelRead === null) return jsonError(404, "This channel was not found. It may already have been fully closed.");
+        if (channelRead.channel.status !== 0) {
+          return jsonOk({
+            advanced: false,
+            cumulative: channelRead.channel.settled.toString(),
+            voucherSignature: null,
+            reason: `This channel is ${STATUS_NAMES[channelRead.channel.status] ?? "not open"}; usage can only be added while it is Open.`,
+            extraction: null,
+            service: describeService(config),
+          });
+        }
+        const stored = await readMeterUsageState(channel, channelRead.channel.settled.toString());
+        if (body.previousCumulativeAtomic !== stored.state.cumulative || previousSignature !== stored.state.voucherSignature) {
+          throw new RequestError("This tab's latest voucher has changed. Reconnect or refresh the session before another review; the stale request was not billed.");
+        }
+        const currentAmount = BigInt(stored.state.cumulative);
+        if (currentAmount + config.rateAtomicPerRequest > channelRead.channel.deposit) {
+          throw new RequestError("This review would exceed the authorized cap. Close and settle the tab before running more reviews.");
+        }
         const extraction = await extractContractTerms(documentText);
-        return jsonOk({ ...result, extraction, service: describeService(config) });
+        const result = await commitUsage(config, channel, stored.state.cumulative, stored.state.voucherSignature);
+        if (!result.advanced || result.voucherSignature === null) {
+          return jsonOk({ ...result, extraction: null, service: describeService(config) });
+        }
+        const nextState = {
+          cumulative: result.cumulative,
+          voucherSignature: result.voucherSignature,
+          count: stored.state.count + 1,
+        };
+        const persisted = await compareAndSetMeterUsageState(channel, stored.raw, nextState);
+        if (!persisted) {
+          throw new RequestError("Another request updated this tab while the AI review was running. No voucher was issued for this request; refresh and retry if you still need the review.");
+        }
+        return jsonOk({ ...result, extraction, usageCount: nextState.count, service: describeService(config) });
       }
 
       case "close": {
         if (channel === null) {
           return jsonError(400, '"channel" is required to close a tab.');
         }
-        const cumulative = typeof body.cumulativeAtomic === "string" && /^\d+$/.test(body.cumulativeAtomic) ? body.cumulativeAtomic : "0";
-        const voucherSignature = typeof body.voucherSignature === "string" && body.voucherSignature.length > 0 ? body.voucherSignature : null;
+        const channelRead = await readChannel(config, channel);
+        if (channelRead === null) return jsonError(404, "This channel was not found. It may already have been fully closed.");
+        let cumulative: string;
+        let voucherSignature: string | null;
+        if (isMeterStoreConfigured()) {
+          const stored = await readMeterUsageState(channel, channelRead.channel.settled.toString());
+          cumulative = stored.state.cumulative;
+          voucherSignature = stored.state.voucherSignature;
+        } else if (BigInt(channelRead.channel.settled) > 0n) {
+          // Legacy channel from the old on-chain ticker: it can be closed at its
+          // chain-verified watermark even if the new off-chain store is missing.
+          cumulative = channelRead.channel.settled.toString();
+          voucherSignature = null;
+        } else {
+          throw new RequestError("Cannot safely close this tab without the provider-side meter store: the latest off-chain usage cannot be verified. Restore UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel, then retry.");
+        }
         const result = await closeChannel(config, channel, cumulative, voucherSignature);
         return jsonOk({
           sealSignature: result.sealSignature,

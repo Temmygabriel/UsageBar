@@ -78,7 +78,7 @@ try {
         const node = document.querySelector("#hero-title");
         return Boolean(node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0);
       })(),
-      headingText: document.querySelector("#hero-title")?.innerText?.replace(/\\s+/g, " ").trim() ?? null,
+      headingText: document.querySelector("#hero-title")?.innerText?.replace(/\s+/g, " ").trim() ?? null,
       headingLinesSeparated: (() => {
         const node = document.querySelector("#hero-title");
         const lines = Array.from(node?.querySelectorAll(":scope > span") ?? []);

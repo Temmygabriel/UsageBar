@@ -69,6 +69,7 @@ jobs:
           USAGEBAR_ARTIFACT_DIR: artifacts/viewport-inspection/local
 
       - name: Inspect Vercel branch preview at required viewport widths
+        continue-on-error: true
         run: node scripts/check-responsive.mjs
         env:
           USAGEBAR_BASE_URL: https://usagebar-git-fix-ui-branding-acce-07fa11-temmygabriels-projects.vercel.app

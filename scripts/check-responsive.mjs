@@ -14,7 +14,7 @@ async function waitForServer(url) {
   let lastError;
   for (let attempt = 0; attempt < 60; attempt += 1) {
     try {
-      const response = await fetch(url, { redirect: "manual" });
+      const response = await fetch(url, { redirect: "follow" });
       if (response.status < 500) return response.status;
       lastError = new Error(`server returned HTTP ${response.status}`);
     } catch (error) {

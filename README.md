@@ -49,10 +49,12 @@ marketplace.
 
 **<https://usagebar.vercel.app>**
 
-Connect a Phantom wallet set to Devnet. The app can stock it with free test SOL
-and TEST tokens if it is empty, so there is nothing to acquire first. You sign
-the deposit yourself — your key never leaves your wallet — watch the meter
-advance, and close, getting the unused remainder back.
+Choose Phantom, Solflare, or OKX Wallet and set it to Devnet. The app can
+stock the selected wallet with free test SOL and TEST tokens if it is empty,
+so there is nothing to acquire first. You sign the deposit yourself — your key
+never leaves your wallet — watch the meter advance, and close, getting the
+unused remainder back. A human browser walkthrough is still required to verify
+the selected wallet's extension-specific connection and signing behavior.
 
 Nothing on that site has any value. It is Devnet.
 

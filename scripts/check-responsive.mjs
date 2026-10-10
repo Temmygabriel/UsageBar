@@ -37,26 +37,16 @@ try {
   await page.locator("#hero-title").waitFor({ state: "visible", timeout: 15000 });
   await page.locator('article[aria-label="Usage tab"]').waitFor({ state: "visible", timeout: 15000 });
 
-  const staticInfo = await page.evaluate(async () => {
-    const hero = document.querySelector("#hero-title")?.parentElement;
-    const imageSet = getComputedStyle(hero, "::after").backgroundImage;
-    const match = imageSet.match(/url\(["']?(.*?)["']?\)/);
-    let background = { url: match?.[1] ?? null, naturalWidth: null, naturalHeight: null, loaded: false };
-    if (match?.[1]) {
-      const image = new Image();
-      image.src = new URL(match[1], location.href).href;
-      try {
-        await image.decode();
-        background = { ...background, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight, loaded: true };
-      } catch {
-        background = { ...background, loaded: false };
-      }
-    }
+  const staticInfo = await page.evaluate(() => {
+    const heroArt = document.querySelector(".contractArt svg");
     const documentIcon = document.querySelector('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]');
     return {
       title: document.title,
       heading: document.querySelector("#hero-title")?.innerText?.replace(/\s+/g, " ").trim() ?? null,
-      background,
+      contractIllustration: {
+        present: Boolean(heroArt),
+        accessibleArtworkHasPaths: Boolean(heroArt?.querySelector("path, rect, text")),
+      },
       documentIcon: {
         presentInsideUsageTab: Boolean(documentIcon),
         outlineOnly: Boolean(documentIcon?.querySelector('[fill="none"][stroke="currentColor"]')),

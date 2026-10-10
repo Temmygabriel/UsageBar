@@ -102,7 +102,7 @@ type InjectedWindow = Window & {
 };
 
 interface WalletStandardAppApi {
-  register(...wallets: StandardWallet[]): void;
+  register(...wallets: StandardWallet[]): () => void;
 }
 
 let standardRegistryInitialized = false;
@@ -119,9 +119,16 @@ function getRegisteredStandardWallets(): readonly StandardWallet[] {
 
   const api: WalletStandardAppApi = Object.freeze({
     register: (...wallets: StandardWallet[]) => {
-      for (const wallet of wallets) {
-        if (!standardWallets.includes(wallet)) standardWallets.push(wallet);
-      }
+      const added = wallets.filter((wallet) => !standardWallets.includes(wallet));
+      standardWallets.push(...added);
+      // Match the Wallet Standard registry contract so providers may unregister
+      // cleanly without affecting wallets registered by another extension.
+      return () => {
+        for (const wallet of added) {
+          const index = standardWallets.indexOf(wallet);
+          if (index >= 0) standardWallets.splice(index, 1);
+        }
+      };
     },
   });
 
@@ -159,7 +166,7 @@ export function getWalletProvider(id: WalletId): WalletProvider | null {
 
   const standardWallet = getRegisteredStandardWallets().find(
     (wallet) => matchesWalletName(wallet.name, id) &&
-      wallet.chains?.some((chain) => chain.startsWith("solana:")) !== false,
+      wallet.chains?.includes("solana:devnet") !== false,
   );
   if (standardWallet !== undefined) return standardWallet;
 

@@ -4,6 +4,7 @@ import { formatAmount } from "../../lib/amounts";
 import {
   type ChannelFacts,
   type ProductState,
+  type SettlementProof,
   type UsageUpdate,
   type ValueProvenance,
   abbreviate,
@@ -12,7 +13,6 @@ import {
   explorerTransactionUrl,
   lastConfirmedUpdate,
   meterFraction,
-  unusedRemainder,
 } from "../../lib/session";
 
 import styles from "./UsageTab.module.css";
@@ -44,7 +44,7 @@ export interface UsageTabProps {
   readonly decimals: number;
   readonly provenance: ValueProvenance;
   readonly facts: ChannelFacts | null;
-  readonly settlementProof: { readonly sealSignature: string; readonly distributeSignature: string } | null;
+  readonly settlementProof: SettlementProof | null;
   readonly updates: readonly UsageUpdate[];
   readonly onOpen: () => void;
   readonly onClose: () => void;
@@ -100,6 +100,7 @@ export default function UsageTab({
   const onChain = provenance === "ON_CHAIN";
 
   const remaining = ceiling > settled ? ceiling - settled : 0n;
+  const displayedRemainder = state === "SETTLED" && settlementProof !== null ? settlementProof.returnedToPayer : remaining;
   const health = describeMeter(settled, ceiling);
   const fraction = meterFraction(settled, ceiling);
 
@@ -177,7 +178,7 @@ export default function UsageTab({
         <div className={styles.row}>
           <span className={styles.rowLabel}>{state === "SETTLED" ? "Returned (unused)" : onChain ? "Remaining" : "Not committed"}</span>
           <span className={amountClass}>
-            {formatAmount(remaining, decimals)}
+            {formatAmount(displayedRemainder, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
           </span>
         </div>
@@ -275,16 +276,16 @@ export default function UsageTab({
           <div className={styles.settlementCell}>
             <span className={styles.settlementLabel}>Settled (used)</span>
             <strong className={styles.settlementValue}>
-              {state === "SETTLED" && facts !== null ? formatAmount(facts.settled, decimals) : "—"}
+              {state === "SETTLED" && facts !== null && settlementProof !== null ? formatAmount(settlementProof.paidToProvider, decimals) : "—"}
             </strong>
-            <span className={styles.settlementHint}>{state === "SETTLED" ? "Provider amount" : "Confirmed at close"}</span>
+            <span className={styles.settlementHint}>{state === "SETTLED" && settlementProof !== null ? "Paid on chain" : "Confirmed at close"}</span>
           </div>
           <div className={styles.settlementCell}>
             <span className={styles.settlementLabel}>Returned (unused)</span>
             <strong className={styles.settlementValue}>
-              {state === "SETTLED" && facts !== null ? formatAmount(unusedRemainder(facts), decimals) : "—"}
+              {state === "SETTLED" && settlementProof !== null ? formatAmount(settlementProof.returnedToPayer, decimals) : "—"}
             </strong>
-            <span className={styles.settlementHint}>{state === "SETTLED" ? "Refund verified" : "Verified refund"}</span>
+            <span className={styles.settlementHint}>{state === "SETTLED" && settlementProof !== null ? "Returned on chain" : "Verified refund"}</span>
           </div>
         </div>
         <p className={styles.settlementNote}>

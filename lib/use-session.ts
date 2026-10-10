@@ -35,7 +35,7 @@ import {
   type ServiceDescription,
   type SessionChannel,
 } from "./client-api";
-import type { ChannelFacts, ProductState, UsageUpdate } from "./session";
+import type { ChannelFacts, ProductState, SettlementProof, UsageUpdate } from "./session";
 import {
   connectWallet,
   detectProvider,
@@ -71,7 +71,7 @@ export interface SessionState {
   readonly state: ProductState;
   readonly channel: SessionChannel | null;
   readonly facts: ChannelFacts | null;
-  readonly settlementProof: { readonly sealSignature: string; readonly distributeSignature: string } | null;
+  readonly settlementProof: SettlementProof | null;
   readonly updates: readonly UsageUpdate[];
   readonly notice: Notice | null;
   readonly busy: boolean;
@@ -475,6 +475,8 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       setSettlementProof({
         sealSignature: result.sealSignature,
         distributeSignature: result.distributeSignature,
+        paidToProvider: BigInt(result.paidToProvider),
+        returnedToPayer: BigInt(result.returnedToPayer),
       });
       setPhase("SETTLED");
       if (connected !== null) forget(connected.address);

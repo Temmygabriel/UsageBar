@@ -156,7 +156,7 @@ Until then the relevant `CLAIM_STATUS.md` row stays `UNVERIFIED`.
 
 - File: `public/camera-scene.webp`
 - Source: the camera/tabletop/brand-card scene in the original generated UsageBar concept image supplied with the design references.
-- Crop: source region x=0–825, y=590–905 from the 1536 × 1024 concept; downscaled to 660 × 252 and optimized as WebP.
+- Crop: full-width lower scene from the 1536 × 1024 concept, approximately x=0–1536 and y=438–1024; resized to 825 × 315 and optimized as WebP.
 - Purpose: an atmospheric background layer beneath the landing-page proposition and three-step explanation. The live Usage Tab remains a separate foreground component.
 - Honesty: the scene is illustrative concept artwork, not a real rental listing or connected camera. Camera usage is simulated; Solana Devnet payment-channel behavior is separately real and must continue to be shown only from verified application/chain state.
 - External requests: none. The scene is served locally from the repository.

@@ -78,15 +78,12 @@ export interface SettlementProof {
 
 /** One accepted cumulative usage update. */
 export interface UsageUpdate {
-  /** 1-based, for display only. */
+  /** 1-based order of the customer-visible request. */
   readonly sequence: number;
-  /** The cumulative amount after this update, in atomic units. */
+  /** Cumulative amount signed by the provider, in atomic units. */
   readonly cumulative: bigint;
-  /**
-   * The transaction that committed it, or null while it is still pending.
-   * A null signature is why an update is never counted as confirmed.
-   */
-  readonly signature: string | null;
+  /** Ed25519 provider signature hex. It is off-chain, not a transaction signature. */
+  readonly voucherSignature: string;
 }
 
 /**
@@ -147,19 +144,9 @@ export function reconciles(facts: ChannelFacts): boolean {
   return facts.deposit === facts.settled + unusedRemainder(facts);
 }
 
-/**
- * The last update whose transaction is confirmed.
- *
- * Section 12 requires proof for a final state, and a pending update is not
- * proof. Returning null when nothing is confirmed keeps callers from treating
- * an optimistic value as a settled one.
- */
-export function lastConfirmedUpdate(updates: readonly UsageUpdate[]): UsageUpdate | null {
-  for (let index = updates.length - 1; index >= 0; index -= 1) {
-    const update = updates[index];
-    if (update.signature !== null) return update;
-  }
-  return null;
+/** The most recent provider-signed cumulative voucher, which is still off-chain. */
+export function lastSignedUpdate(updates: readonly UsageUpdate[]): UsageUpdate | null {
+  return updates.length === 0 ? null : updates[updates.length - 1];
 }
 
 /** A short, human-scannable form of an address: `7KzNMe2b…oJwo`. */

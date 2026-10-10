@@ -38,9 +38,9 @@ const CLUSTER = process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "devnet";
  * the honest version of a "trust us" section: it asks the reader to verify
  * rather than to believe.
  *
- * These are the standalone runs that proved the protocol works, not
- * transactions from the live demo above. The distinction matters and the note
- * below the list says so.
+ * These are independent evidence transactions produced by the repository tooling,
+ * not transactions from the live demo above. The distinction matters and the
+ * note below the list says so.
  */
 const EVIDENCE = [
   {
@@ -285,7 +285,7 @@ export default function Page() {
               <p className={styles.footerEyebrow}>PROTOCOL EVIDENCE · SOLANA DEVNET</p>
               <h2 className={styles.footerTitle} id="evidence">Proof you can inspect.</h2>
               <p className={styles.footerIntro}>
-                Four standalone transactions trace the core Payment Channels lifecycle. Each link opens
+                Four independently verifiable transactions demonstrate key Payment Channels operations. Each link opens
                 the original transaction in Solana Explorer.
               </p>
             </div>

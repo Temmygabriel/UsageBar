@@ -196,10 +196,6 @@
   .stepIcon { width: 34px; height: 34px; margin-bottom: 10px; }
   .stepTitle { white-space: normal; font-size: 0.82rem; }
   .step p { font-size: 0.68rem; }
-  .useCases { margin-top: 38px; padding-top: 18px; }
-  .useCasesTitle { margin-bottom: 18px; }
-  .useCaseGrid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .useCase { align-items: center; }
   .howInner { padding: 32px 16px; }
   .footerInner { padding: 34px 16px 20px; }
   .footerHeader { flex-direction: column; align-items: flex-start; gap: 18px; padding-bottom: 20px; }

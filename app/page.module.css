@@ -351,3 +351,28 @@
   .walletOption { gap: 10px; }
   .walletOption .button { min-width: 84px; padding-inline: 10px; }
 }
+
+
+/* Keep the selected-wallet status legible without colliding with the wordmark
+   on compact viewports. The accessible label and title retain the wallet name. */
+.connectingStatusDesktop { display: inline; }
+.connectingStatusMobile { display: none; }
+
+@media (max-width: 699px) {
+  .connectingStatusDesktop { display: none; }
+  .connectingStatusMobile { display: inline; }
+  .headerActions { gap: 5px; }
+  .headerActions .connectingStatus {
+    max-width: 86px;
+    overflow: hidden;
+    padding: 3px 5px;
+    font-size: 0.58rem;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .headerActions .button {
+    padding-inline: 8px;
+    font-size: 0.70rem;
+    letter-spacing: 0;
+  }
+}

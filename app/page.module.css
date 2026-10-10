@@ -234,3 +234,120 @@
   .footerLinks { gap: 12px 16px; }
 }
 
+
+
+/* Wallet chooser — a restrained modal rather than an uncontrolled extension prompt. */
+.walletPickerBackdrop {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgb(24 21 17 / 56%);
+  backdrop-filter: blur(3px);
+}
+.walletPicker {
+  width: min(100%, 480px);
+  padding: 26px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 18%);
+}
+.walletPickerHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.walletPickerHeader h2 {
+  margin-top: 8px;
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-size: clamp(1.6rem, 5vw, 2rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+.walletPickerClose {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 1.65rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.walletPickerDescription {
+  margin-top: 14px;
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+.walletOptions {
+  display: flex;
+  flex-direction: column;
+  margin-top: 22px;
+  border-top: 1px solid var(--rule);
+}
+.walletOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.walletOptionCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.walletOptionCopy strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.walletOptionCopy span {
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+}
+.walletInstallLink {
+  flex: none;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--rule-strong);
+  color: var(--ink);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+.walletInstallLink:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.walletOption .button {
+  flex: none;
+  min-width: 96px;
+  padding: 9px 13px;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+}
+.walletPickerNote {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+.walletPickerNote strong { color: var(--ink); }
+
+@media (max-width: 420px) {
+  .walletPickerBackdrop { padding: 12px; }
+  .walletPicker { padding: 20px 17px; }
+  .walletOption { gap: 10px; }
+  .walletOption .button { min-width: 84px; padding-inline: 10px; }
+}

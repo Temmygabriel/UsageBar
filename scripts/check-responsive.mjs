@@ -38,7 +38,7 @@ try {
   await page.locator('article[aria-label="Usage tab"]').waitFor({ state: "visible", timeout: 15000 });
 
   const staticInfo = await page.evaluate(() => {
-    const heroArt = document.querySelector(".contractArt svg");
+    const heroArt = document.querySelector('section[aria-labelledby="hero-title"] svg[viewBox="0 0 520 300"]');
     const documentIcon = document.querySelector('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]');
     return {
       title: document.title,
@@ -270,6 +270,8 @@ try {
       && measurement.headingLinesSeparated
       && measurement.documentIconCount === 1
       && measurement.groqServiceDisclosure
+      && measurement.contractIllustration.present
+      && measurement.contractIllustration.accessibleArtworkHasPaths
       && !overflow;
 
     const screenshot = `${outputDir}/viewport-${String(width).padStart(4, "0")}.png`;
@@ -288,6 +290,8 @@ try {
           !measurement.headingLinesSeparated ? "hero headline lines are joined or not displayed as separate lines" : null,
           measurement.documentIconCount !== 1 ? "outline document icon is missing or duplicated inside Usage Tab" : null,
           !measurement.groqServiceDisclosure ? "Groq service disclosure is missing" : null,
+          !measurement.contractIllustration.present ? "contract-review hero illustration is missing" : null,
+          !measurement.contractIllustration.accessibleArtworkHasPaths ? "contract-review hero illustration has no drawable artwork" : null,
           overflow ? `horizontal overflow: document=${measurement.documentWidth}, body=${measurement.bodyWidth}, viewport=${width}` : null,
         ].filter(Boolean),
       });

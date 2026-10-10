@@ -385,7 +385,7 @@ export default function Page() {
             onStartService={actions.startService}
             onRunUsage={actions.runUsage}
             busyRequest={busy}
-            openDisabled={Boolean(connected && !shortOnFunds && groqUnavailable)}
+            openDisabled={Boolean(connected && (!service || (!shortOnFunds && groqUnavailable)))}
             onClose={actions.close}
             openLabel={openLabel}
             blockedReason={blockedReason}

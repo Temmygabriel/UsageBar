@@ -50,6 +50,18 @@ Choose Phantom, Solflare, or OKX Wallet and set it to Devnet. The app can give t
 
 Nothing on that site has any value. It is Devnet.
 
+## Groq API setup
+
+The live server needs a Groq API key in **Vercel**, not only as a GitHub Actions secret:
+
+1. Open [UsageBar's Vercel project settings](https://vercel.com/temmygabriels-projects/usagebar/settings/environment-variables).
+2. Add `GROQ_API_KEY` using the secret from your Groq console. Select **Production** and **Preview** environments.
+3. Save the variable and redeploy the project. Preview deployments and the production deployment use their own configured runtime environment.
+
+Keep this key server-side. Never name it `NEXT_PUBLIC_GROQ_API_KEY`, commit it, or paste it into chat. The app reports whether the runtime key exists, but it never returns the key value.
+
+Groq's free plan has request/token limits; it is not unlimited or guaranteed to stay free forever. Only submit the supplied sample or public, non-confidential contract text. Groq receives the submitted text, and AI results are not legal advice.
+
 ## Demo Video
 
 Not recorded yet. This is honestly the last packaging item outstanding.

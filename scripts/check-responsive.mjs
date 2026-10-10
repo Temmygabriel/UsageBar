@@ -129,8 +129,15 @@ try {
       // assert the selected wallet label and Cancel action deterministically.
       const connectingStatus = walletPage.locator("header [role='status']");
       await connectingStatus.waitFor({ state: "visible", timeout: 3000 });
-      if (!(await connectingStatus.innerText()).includes("Connecting to Phantom")) {
-        throw new Error("Header did not identify the selected wallet while connecting.");
+      const observedConnectingLabel = (await connectingStatus.innerText()).replace(/\s+/g, " ").trim();
+      await walletPage.screenshot({
+        path: `${outputDir}/wallet-connecting-state.png`,
+        animations: "disabled",
+      });
+      if (!observedConnectingLabel.includes("Connecting to Phantom")) {
+        throw new Error(
+          `Header did not identify the selected wallet while connecting. Observed: "${observedConnectingLabel}"`,
+        );
       }
 
       // This prompt intentionally never settles. UsageBar's own Cancel must

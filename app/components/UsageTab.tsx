@@ -260,6 +260,7 @@ export default function UsageTab({
             <span className={styles.controlEyebrow}>READY TO USE</span>
             <h3>Your spending cap is funded.</h3>
             <p>Nothing has been billed yet. Start the service, then review sample contract text below. Each successful review costs {formatAmount(BigInt(rateAtomicPerRequest), decimals)} {unitLabel}.</p>
+            {!groqConfigured && <p className={styles.pending}>Configure GROQ_API_KEY in Vercel and redeploy before starting the service.</p>}
             <button type="button" className="button button-block" onClick={onStartService} disabled={busyRequest || !groqConfigured}>Start contract review</button>
           </div>
         )}
@@ -282,7 +283,7 @@ export default function UsageTab({
             <p className={styles.offchainNote}>Successful requests add a provider-signed voucher off-chain. No blockchain transaction is sent per review; the latest voucher is submitted when you close.</p>
           </div>
         )}
-        {lastExtraction !== null && state !== "SETTLED" && (
+        {lastExtraction !== null && (
           <article className={styles.reviewResult} aria-live="polite">
             <header><span className={styles.controlEyebrow}>LATEST AI RESULT · REVIEW {taskCount}</span><span className={styles.resultType}>{lastExtraction.documentType}</span></header>
             <p className={styles.resultSummary}>{lastExtraction.summary}</p>

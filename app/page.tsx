@@ -182,8 +182,9 @@ export default function Page() {
               <span className={styles.kickerRule} aria-hidden="true" />
             </div>
 
-            <h1 className="display" id="hero-title">
+            <h1 className="display" id="hero-title" aria-label="Pay for what you actually use.">
               <span>Pay for what</span>
+              {" "}
               <span>you actually use.</span>
             </h1>
 

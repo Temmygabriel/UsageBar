@@ -78,6 +78,15 @@ try {
         const node = document.querySelector("#hero-title");
         return Boolean(node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0);
       })(),
+      headingText: document.querySelector("#hero-title")?.innerText?.replace(/\\s+/g, " ").trim() ?? null,
+      headingLinesSeparated: (() => {
+        const node = document.querySelector("#hero-title");
+        const lines = Array.from(node?.querySelectorAll(":scope > span") ?? []);
+        if (lines.length !== 2 || lines.some((line) => getComputedStyle(line).display !== "block")) return false;
+        const first = lines[0].getBoundingClientRect();
+        const second = lines[1].getBoundingClientRect();
+        return second.top >= first.top + first.height * 0.8;
+      })(),
       usageTabVisible: (() => {
         const node = document.querySelector('article[aria-label="Usage tab"]');
         return Boolean(node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0);
@@ -89,6 +98,8 @@ try {
     const overflow = measurement.documentWidth > width || measurement.bodyWidth > width;
     const valid = measurement.headingVisible
       && measurement.usageTabVisible
+      && measurement.headingText === "Pay for what you actually use."
+      && measurement.headingLinesSeparated
       && measurement.cameraIconCount === 1
       && measurement.simulatedCameraDisclosure
       && !overflow;
@@ -104,6 +115,8 @@ try {
         reasons: [
           !measurement.headingVisible ? "hero proposition is not visible" : null,
           !measurement.usageTabVisible ? "Usage Tab is not visible" : null,
+          measurement.headingText !== "Pay for what you actually use." ? `incorrect hero headline text: "${measurement.headingText}"` : null,
+          !measurement.headingLinesSeparated ? "hero headline lines are joined or not displayed as separate lines" : null,
           measurement.cameraIconCount !== 1 ? "outline camera icon is missing or duplicated inside Usage Tab" : null,
           !measurement.simulatedCameraDisclosure ? "simulated-camera disclosure is missing" : null,
           overflow ? `horizontal overflow: document=${measurement.documentWidth}, body=${measurement.bodyWidth}, viewport=${width}` : null,

@@ -149,14 +149,16 @@ Until then the relevant `CLAIM_STATUS.md` row stays `UNVERIFIED`.
 | UsageBar brand mark in header | Original inline SVG authored for this repository | Original project asset; no external source |
 | Browser favicon | `app/icon.svg`, original SVG using the same bar/meter motif | Original project asset; no external source |
 | Camera icon inside Usage Tab | Inline SVG authored for this repository | Original project asset; decorative only |
-| Camera scene behind landing hero | `public/camera-scene.webp`, cropped from the saved `UsageBar_Original_Concept_1.png` design reference | Derived from generated concept art; not third-party stock photography |
+| Camera scene behind landing hero | `public/camera-scene.webp` | Existing compressed concept crop; **fails visual acceptance** because of visible mosaic/compression artifacts and insufficient source resolution. High-resolution photographic replacement remains outstanding. |
 | Fonts | Fraunces, IBM Plex Sans, IBM Plex Mono via `next/font` | Existing font setup retained |
 
 ## Landing hero camera scene
 
 - File: `public/camera-scene.webp`
 - Source: the camera/tabletop/brand-card scene in the original generated UsageBar concept image supplied with the design references.
-- Crop: full-width lower scene from the 1536 × 1024 concept, approximately x=0–1536 and y=438–1024; resized to 825 × 315 and optimized as WebP.
+- Current delivered size: **660 × 252 pixels**, verified by decoding the asset in the browser during CI at commit `49df72d2a26322b56e24bbc6ba7739b604dfded9`. The earlier 825 × 315 statement was an intended size and does not match the committed file.
+- Visual acceptance: **FAIL**. The crop has visible mosaic/compression artifacts at its rendered size and is not an acceptable final photographic background.
+- Required replacement: a sharp, high-resolution photographic still life matching the supplied references (black mirrorless camera, warm oak tabletop, restrained cream card, subtle foliage at left, natural daylight), with no screenshot/UI elements. This replacement has not been generated or committed in this pass.
 - Purpose: an atmospheric background layer beneath the landing-page proposition and three-step explanation. The live Usage Tab remains a separate foreground component.
 - Honesty: the scene is illustrative concept artwork, not a real rental listing or connected camera. Camera usage is simulated; Solana Devnet payment-channel behavior is separately real and must continue to be shown only from verified application/chain state.
 - External requests: none. The scene is served locally from the repository.

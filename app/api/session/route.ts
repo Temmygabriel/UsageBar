@@ -165,6 +165,7 @@ export async function POST(request: Request): Promise<Response> {
         const previousSignature = typeof body.previousVoucherSignature === "string" && body.previousVoucherSignature.length > 0 ? body.previousVoucherSignature : null;
         const documentText = requireString(body, "documentText");
         const result = await commitUsage(config, channel, previous, previousSignature);
+        if (!result.advanced) return jsonOk({ ...result, extraction: null, service: describeService(config) });
         const extraction = await extractContractTerms(documentText);
         return jsonOk({ ...result, extraction, service: describeService(config) });
       }

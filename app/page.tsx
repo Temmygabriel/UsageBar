@@ -192,8 +192,15 @@ export default function Page() {
               </>
             ) : wallet.status === "connecting" ? (
               <>
-                <span className={`chip chip-accent ${styles.walletChip}`} role="status" aria-live="polite">
-                  Connecting to {wallet.name ?? "wallet"}…
+                <span
+                  className={`chip chip-accent ${styles.walletChip} ${styles.connectingStatus}`}
+                  role="status"
+                  aria-live="polite"
+                  aria-label={`Connecting to ${wallet.name ?? "wallet"}`}
+                  title={`Connecting to ${wallet.name ?? "wallet"}`}
+                >
+                  <span className={styles.connectingStatusDesktop}>Connecting to {wallet.name ?? "wallet"}…</span>
+                  <span className={styles.connectingStatusMobile}>Connecting…</span>
                 </span>
                 <button
                   type="button"

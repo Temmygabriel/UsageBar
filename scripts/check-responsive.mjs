@@ -64,6 +64,96 @@ try {
     };
   });
 
+  // Exercise the wallet chooser and both connection recovery paths with
+  // deterministic fake providers. These tests prove app state recovery, not
+  // the behavior of a real browser extension or a real transaction.
+  async function checkWalletPromptRecovery(mode) {
+    const walletPage = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 1,
+    });
+    walletPage.on("pageerror", error => pageErrors.push(error.message));
+    await walletPage.addInitScript((behavior) => {
+      const connect = behavior === "hang"
+        ? () => new Promise(() => {})
+        : async () => {
+            const error = new Error("User rejected the request");
+            Object.defineProperty(error, "code", { value: 4001 });
+            throw error;
+          };
+
+      Object.defineProperty(window, "phantom", {
+        configurable: true,
+        value: {
+          solana: {
+            isPhantom: true,
+            connect,
+            publicKey: null,
+          },
+        },
+      });
+    }, mode);
+
+    await walletPage.goto(baseUrl, { waitUntil: "domcontentloaded" });
+    await walletPage.locator("#hero-title").waitFor({ state: "visible", timeout: 15000 });
+    await walletPage.getByRole("button", { name: "Choose wallet" }).first().click();
+
+    const dialog = walletPage.getByRole("dialog", { name: "Choose your wallet" });
+    await dialog.waitFor({ state: "visible", timeout: 3000 });
+    const chooserText = await dialog.innerText();
+    for (const walletName of ["Solflare", "Phantom", "OKX Wallet"]) {
+      if (!chooserText.includes(walletName)) {
+        throw new Error(`Wallet chooser did not list ${walletName}.`);
+      }
+    }
+
+    if (mode === "hang") {
+      await walletPage.screenshot({
+        path: `${outputDir}/wallet-chooser-cancel-test.png`,
+        animations: "disabled",
+      });
+    }
+
+    await dialog.getByRole("button", { name: "Connect", exact: true }).click();
+    await walletPage.locator("header [role='status']").getByText(/Connecting to Phantom/).waitFor({
+      state: "visible",
+      timeout: 3000,
+    });
+
+    if (mode === "hang") {
+      // This prompt intentionally never settles. UsageBar's own Cancel must
+      // immediately clear the connecting UI even when the provider hangs.
+      await walletPage.getByRole("button", { name: "Cancel", exact: true }).click();
+      await walletPage.getByText(/Connection cancelled in UsageBar/).waitFor({
+        state: "visible",
+        timeout: 3000,
+      });
+    } else {
+      // Mimic a wallet extension rejecting a prompt with the standard 4001 code.
+      await walletPage.getByText(/Phantom connection was cancelled/).waitFor({
+        state: "visible",
+        timeout: 3000,
+      });
+    }
+
+    await walletPage.getByRole("button", { name: "Choose wallet" }).first().waitFor({
+      state: "visible",
+      timeout: 3000,
+    });
+
+    if (mode === "hang") {
+      await walletPage.screenshot({
+        path: `${outputDir}/wallet-chooser-after-cancel.png`,
+        fullPage: true,
+        animations: "disabled",
+      });
+    }
+    await walletPage.close();
+  }
+
+  await checkWalletPromptRecovery("reject");
+  await checkWalletPromptRecovery("hang");
+
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(() => document.fonts.ready);

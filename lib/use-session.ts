@@ -288,7 +288,9 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
           setService(session.service);
           setChannel(session.channel);
           setOpenTransaction(remembered.openTransaction);
-          const amount = BigInt(remembered.usageAtomic ?? session.channel.settled);
+          const storedAmount = BigInt(remembered.usageAtomic ?? session.channel.settled);
+          const onChainAmount = BigInt(session.channel.settled);
+          const amount = storedAmount > onChainAmount ? storedAmount : onChainAmount;
           const signature = remembered.voucherSignature ?? null;
           const count = remembered.updateCount ?? 0;
           setUsageAmount(amount);
@@ -548,8 +550,10 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     });
 
     try {
-      const used = usageAmountRef.current;
-      const signature = used > BigInt(current.settled) ? voucherSignatureRef.current : null;
+      const onChainAmount = BigInt(current.settled);
+      const clientAmount = usageAmountRef.current;
+      const used = clientAmount > onChainAmount ? clientAmount : onChainAmount;
+      const signature = used > onChainAmount ? voucherSignatureRef.current : null;
       const result = await closeSession(current.address, used.toString(), signature);
 
       // The numbers below are the ones the server measured by reading balances

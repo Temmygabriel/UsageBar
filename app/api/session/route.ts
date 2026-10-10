@@ -153,7 +153,7 @@ export async function POST(request: Request): Promise<Response> {
           channel: built.channel,
           openSlot: built.openSlot,
           salt: built.salt,
-          ceilingAtomic: config.ceilingAtomic.toString(),
+          ceilingAtomic: requestedCeiling.toString(),
         });
       }
 

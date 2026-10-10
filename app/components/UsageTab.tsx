@@ -195,6 +195,14 @@ export default function UsageTab({
           <p className={styles.capHint}>Choose the most you are willing to spend. Only successful AI reviews increase the final bill.</p>
         </section>
       )}
+      {canOpen && (
+        <div className={styles.readyAction}>
+          <button type="button" className="button button-block" onClick={() => onOpen((BigInt(selectedCeiling) * (10n ** BigInt(decimals))).toString())} disabled={openDisabled || busyRequest}>
+            <span>{openLabel}</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
+          </button>
+          {blockedReason !== null && <p className={styles.pending}>{blockedReason}</p>}
+        </div>
+      )}
 
       <div className={styles.amounts}>
         <div className={styles.row}>
@@ -300,15 +308,6 @@ export default function UsageTab({
       </section>
 
       <footer className={styles.foot}>
-        {canOpen && (
-          <>
-            <button type="button" className="button button-block" onClick={() => onOpen((BigInt(selectedCeiling) * (10n ** BigInt(decimals))).toString())} disabled={openDisabled || busyRequest}>
-              <span>{openLabel}</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
-            </button>
-            {blockedReason !== null && <p className={styles.pending}>{blockedReason}</p>}
-          </>
-        )}
-
         {canClose && (
           <button type="button" className="button button-block" onClick={onClose} disabled={busyRequest || busy}>
             <span>Close &amp; settle</span><span className={styles.buttonArrow} aria-hidden="true">→</span>

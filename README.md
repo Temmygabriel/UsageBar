@@ -40,18 +40,13 @@ Example: approve a 50 TEST cap; if the session uses 6.25 TEST, the provider rece
 
 **Who might use this pattern?** Providers of metered AI/API access, compute jobs, data downloads or time-based rentals—especially where many small usage events would make one on-chain payment per event slow or cumbersome.
 
-**What this demo actually does:** it simulates a camera-rental timer and meters time. It is not connected to a real camera, rental company, AI API or compute service. The payment-channel settlement is real on Solana Devnet; the TEST tokens have no real-world value. UsageBar demonstrates the payment mechanism, not a live commercial service.
+**What this demo actually does:** it sends sample contract text to Groq's `openai/gpt-oss-20b` model and presents a structured AI review (summary, parties, dates, monetary terms, clauses, potential risks, and missing details). Each successful review is one usage unit priced at **1.00 TEST** for demo purposes. The customer selects a maximum cap (5, 10, 25, or 50 TEST); the cap is escrowed, not charged up front. Each successful review adds an off-chain cumulative Ed25519 voucher; UsageBar submits the latest voucher when closing, then pays out and returns the unused balance on Solana Devnet. This is a hackathon prototype, not legal advice or a production legal tool. TEST has no real-world value. Use sample or public documents only. The Groq API must be configured on the Vercel deployment, and free-plan limits can cause requests to fail.
 
 ## Live Demo
 
 **<https://usagebar.vercel.app>**
 
-Choose Phantom, Solflare, or OKX Wallet and set it to Devnet. The app can
-stock the selected wallet with free test SOL and TEST tokens if it is empty,
-so there is nothing to acquire first. You sign the deposit yourself — your key
-never leaves your wallet — watch the meter advance, and close, getting the
-unused remainder back. A human browser walkthrough is still required to verify
-the selected wallet's extension-specific connection and signing behavior.
+Choose Phantom, Solflare, or OKX Wallet and set it to Devnet. The app can give the selected wallet free test SOL and TEST tokens if it is empty. Choose a maximum, connect, and sign the escrow deposit yourself. Then start contract review, run the supplied sample (or paste public, non-confidential text), inspect the returned AI summary, and repeat as needed. Each successful review adds 1.00 TEST to an off-chain signed voucher. Close & settle to submit the latest voucher, pay the used amount, and return the unused balance. A human browser walkthrough is still required to verify a real wallet's connection, signing, and settlement behavior.
 
 Nothing on that site has any value. It is Devnet.
 
@@ -61,8 +56,7 @@ Not recorded yet. This is honestly the last packaging item outstanding.
 
 ## Verified Devnet Run
 
-The canonical run `canonical-usagebar-devnet-001` completed all twelve steps in
-one uninterrupted pass with an evidence artifact for each. Committed under
+The canonical run `canonical-usagebar-devnet-001` completed all twelve protocol-proof steps in one uninterrupted pass. These are **baseline protocol artifacts from the earlier timer proof-of-concept**, not a measurement of the new Groq contract-review service. They remain useful evidence that the Payment Channels lifecycle works. Committed under
 [`evidence/canonical-run/`](evidence/canonical-run/), and re-checked
 independently by [`tools/verify-canonical-run.ts`](tools/verify-canonical-run.ts),
 which re-derives the channel address from its recorded PDA seeds, re-queries all
@@ -78,11 +72,7 @@ commitment the channel has carried since it opened.
 | Customer refunded | `43750000`, exactly `deposit − settled` |
 | Escrow after | closed and empty |
 
-**One thing these artifacts do not show.** Unlike an earlier channel, this one
-was not reaped: reclamation needs `slot > open_slot + 1500`, and it was opened
-seconds before it closed. It survives at status `3` (Distributed) with the
-escrow drained. Both outcomes are the program behaving correctly, and which one
-you get depends on how long the channel lived.
+**One thing these artifacts do not show.** They do not prove that a Groq response has been metered on the current UI path or that the live Vercel runtime has the Groq secret configured. The canonical channel's lifetime also did not meet the reclaim guard (`slot > open_slot + 1500`), so it remains at status `3` (Distributed) with the escrow drained.
 
 ## What is novel
 
@@ -118,10 +108,7 @@ one final settlement
 unused amount recovered
 ```
 
-The customer signs exactly one transaction — the deposit. Every usage update
-after that is a signature over 50 bytes that costs nothing and touches no chain.
-Only the final settlement is a transaction again, and it pays the provider and
-refunds the customer in the same breath.
+The customer signs the deposit transaction. Every successful usage update after that is a provider-signed 50-byte cumulative voucher and touches no chain. At close, a transaction submits the latest voucher and seals the channel; a second distribution transaction pays the provider and returns the unused deposit. Neither an individual review nor its voucher requires an on-chain transaction.
 
 ## Usage Session Lifecycle
 
@@ -146,9 +133,7 @@ key never reaches a server.
 [`docs/SECURITY.md`](docs/SECURITY.md) — threat model, signer model and
 invariants, including what an attacker who controls the service still cannot do.
 
-**The service meter is simulated. The payment mechanism is real.** The project
-does not claim trustless physical metering, IoT telemetry, or fraud-proof usage
-measurement. See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
+**The metered service is real; the pricing is a demo rule.** Each completed Groq contract-review request returns an actual model-generated result and, if valid, a provider-signed usage voucher. The prototype does not cryptographically prove model inference to the chain, independently audit legal correctness, or price each review at Groq's actual token cost. The payment-channel mechanism is real on Devnet. See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
 
 ## Tests
 
@@ -191,7 +176,7 @@ node tools/probe-deployed-app.mjs          # needs nothing installed
 
 ## Known Limitations
 
-- **Simulated service usage.** The meter is not trustworthy and does not claim to be.
+- **Demo pricing and provider trust.** A successful Groq review costs 1 TEST by this demo's rule; that is not a conversion of Groq's token costs. The server signs usage vouchers and the customer trusts the service to issue them only for successful reviews.
 - **Devnet test funds only.** No real economic value.
 - **The browser wallet handshake has not been exercised by a human.** The
   deployment probe signs and lands a real `open` transaction against the live

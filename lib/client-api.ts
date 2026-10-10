@@ -143,9 +143,6 @@ export interface OpenResponse {
 
 export function buildOpenTransaction(address:string,ceilingAtomic:string):Promise<OpenResponse>{return call<OpenResponse>("/api/session",{method:"POST",body:JSON.stringify({action:"open",address,ceilingAtomic})});}
 
-export interface UsageResponse
-}
-
 export interface ExtractionResult{readonly documentType:string;readonly summary:string;readonly parties:string[];readonly dates:string[];readonly monetaryTerms:string[];readonly clauses:string[];readonly risks:string[];readonly missingDetails:string[];readonly disclaimer:string;}
 export interface UsageResponse{readonly advanced:boolean;readonly cumulative:string;readonly voucherSignature:string|null;readonly reason:string|null;readonly extraction:ExtractionResult|null;readonly service:ServiceDescription;}
 export function runMeteredExtraction(channel:string,previousCumulativeAtomic:string,previousVoucherSignature:string|null,documentText:string):Promise<UsageResponse>{return call<UsageResponse>("/api/session",{method:"POST",body:JSON.stringify({action:"usage",channel,previousCumulativeAtomic,previousVoucherSignature,documentText})});}

@@ -134,7 +134,7 @@ try {
         path: `${outputDir}/wallet-connecting-state.png`,
         animations: "disabled",
       });
-      if (!observedConnectingLabel.includes("Connecting to Phantom")) {
+      if (!observedConnectingLabel.toLowerCase().includes("connecting to phantom")) {
         throw new Error(
           `Header did not identify the selected wallet while connecting. Observed: "${observedConnectingLabel}"`,
         );

@@ -101,6 +101,10 @@ type InjectedWindow = Window & {
   okxwallet?: { solana?: WalletProvider };
 };
 
+interface WalletStandardAppApi {
+  register(...wallets: StandardWallet[]): void;
+}
+
 let standardRegistryInitialized = false;
 const standardWallets: StandardWallet[] = [];
 
@@ -113,7 +117,7 @@ function getRegisteredStandardWallets(): readonly StandardWallet[] {
   if (standardRegistryInitialized) return standardWallets;
   standardRegistryInitialized = true;
 
-  const api = Object.freeze({
+  const api: WalletStandardAppApi = Object.freeze({
     register: (...wallets: StandardWallet[]) => {
       for (const wallet of wallets) {
         if (!standardWallets.includes(wallet)) standardWallets.push(wallet);
@@ -122,7 +126,7 @@ function getRegisteredStandardWallets(): readonly StandardWallet[] {
   });
 
   window.addEventListener("wallet-standard:register-wallet", (event: Event) => {
-    const callback = (event as CustomEvent<((api: typeof api) => void)>).detail;
+    const callback = (event as CustomEvent<(app: WalletStandardAppApi) => void>).detail;
     if (typeof callback === "function") callback(api);
   });
 

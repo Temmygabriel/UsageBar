@@ -149,16 +149,16 @@ Until then the relevant `CLAIM_STATUS.md` row stays `UNVERIFIED`.
 | UsageBar brand mark in header | Original inline SVG authored for this repository | Original project asset; no external source |
 | Browser favicon | `app/icon.svg`, original SVG using the same bar/meter motif | Original project asset; no external source |
 | Camera icon inside Usage Tab | Inline SVG authored for this repository | Original project asset; decorative only |
-| Camera scene behind landing hero | `public/camera-scene.webp` | Existing compressed concept crop; **fails visual acceptance** because of visible mosaic/compression artifacts and insufficient source resolution. High-resolution photographic replacement remains outstanding. |
+| Landing hero camera scene | `public/camera-scene.webp` | Replacement asset is committed on `main`; user has visually confirmed the clean-image Vercel preview. Confirm the production `usagebar.vercel.app` deployment after the merge before treating it as the submitted version. |
 | Fonts | Fraunces, IBM Plex Sans, IBM Plex Mono via `next/font` | Existing font setup retained |
 
 ## Landing hero camera scene
 
 - File: `public/camera-scene.webp`
-- Source: the camera/tabletop/brand-card scene in the original generated UsageBar concept image supplied with the design references.
-- Current delivered size: **660 × 252 pixels**, matching the landing-page hero crop.
-- Replacement: generated from the supplied photographic reference and center-cropped/resized to **660 × 252 pixels** in WebP format (**8,424 bytes**). The repository asset has been replaced on `fix/ui-branding-accessibility`; final Vercel visual verification is pending.
-- Visual target: black mirrorless camera on warm oak, restrained cream card, subtle foliage at left, and natural daylight. No screenshot UI, fabricated text, watermark, or neon treatment.
+- Delivered size: **660 × 252 pixels**, matching the landing-page hero crop.
+- Source: generated photographic still-life based on the supplied camera/tabletop reference, center-cropped and resized to the intended hero dimensions.
+- Intended visual target: black mirrorless camera on warm oak, restrained cream card, subtle foliage at left, and natural daylight. No screenshot UI, fabricated text, watermark, or neon treatment.
 - Purpose: an atmospheric background layer beneath the landing-page proposition and three-step explanation. The live Usage Tab remains a separate foreground component.
 - Honesty: the scene is illustrative concept artwork, not a real rental listing or connected camera. Camera usage is simulated; Solana Devnet payment-channel behavior is separately real and must continue to be shown only from verified application/chain state.
 - External requests: none. The scene is served locally from the repository.
+- Verification boundary: responsive CI checks image loading and viewport layout, but does not by itself prove the production domain is serving the merged asset. Recheck the production URL after Vercel completes the main-branch deployment.

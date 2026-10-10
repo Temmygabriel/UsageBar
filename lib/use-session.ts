@@ -38,10 +38,12 @@ import {
 import type { ChannelFacts, ProductState, SettlementProof, UsageUpdate } from "./session";
 import {
   connectWallet,
-  detectProvider,
+  getWalletProvider,
+  SUPPORTED_WALLETS,
   disconnectWallet,
   signAndSend,
   type ConnectedWallet,
+  type WalletId,
 } from "./wallet";
 
 /**
@@ -85,7 +87,8 @@ export interface SessionState {
 }
 
 export interface SessionActions {
-  connect(): Promise<void>;
+  connect(walletId: WalletId): Promise<void>;
+  cancelConnect(): void;
   disconnect(): Promise<void>;
   fund(): Promise<void>;
   open(): Promise<void>;
@@ -153,6 +156,8 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
 
   /** The live wallet handle. A ref, not state: it is never rendered. */
   const connectedRef = useRef<ConnectedWallet | null>(null);
+  /** Invalidates a pending connection when the user cancels or changes wallets. */
+  const connectAttemptRef = useRef(0);
   /** Guards the metering loop against overlapping requests. */
   const tickingRef = useRef(false);
 
@@ -208,23 +213,30 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     }
   }, []);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (walletId: WalletId) => {
+    const attempt = ++connectAttemptRef.current;
     setNotice(null);
-    const provider = detectProvider();
+
+    const walletOption = SUPPORTED_WALLETS.find((option) => option.id === walletId);
+    const walletName = walletOption?.name ?? walletId;
+    const provider = getWalletProvider(walletId);
     if (provider === null) {
+      setWallet({ status: "disconnected", address: null, name: null });
       setNotice({
         tone: "warn",
-        text:
-          "No Solana wallet was found in this browser. This demo is built so that the customer " +
-          "holds their own key — you open the tab with your own wallet, and the unused remainder " +
-          "is refunded to it when you close. Install Phantom, set it to Devnet, and reload.",
+        text: `${walletName} was not detected in this browser. Install or enable its browser extension, then reload UsageBar.`,
       });
       return;
     }
 
-    setWallet({ status: "connecting", address: null, name: null });
+    setWallet({ status: "connecting", address: null, name: walletName });
     try {
-      const connected = await connectWallet(provider);
+      const connected = await connectWallet(provider, walletName);
+      // The browser extension prompt cannot be dismissed by a page script.
+      // If the user cancelled in UsageBar while it was open, ignore a late
+      // success/rejection rather than resurrecting the connection state.
+      if (connectAttemptRef.current !== attempt) return;
+
       connectedRef.current = connected;
       setWallet({ status: "connected", address: connected.address, name: connected.walletName });
       void refreshBalances(connected.address);
@@ -235,6 +247,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       if (remembered !== null) {
         setPhase("OPENING");
         const session = await readSession(remembered.channel);
+        if (connectAttemptRef.current !== attempt) return;
         if (session.channel !== null && session.service !== null) {
           setService(session.service);
           setChannel(session.channel);
@@ -254,17 +267,52 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
         setPhase("READY");
       }
     } catch (error) {
+      if (connectAttemptRef.current !== attempt) return;
       connectedRef.current = null;
       setWallet({ status: "disconnected", address: null, name: null });
       setPhase("READY");
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : String(error),
-      });
+
+      const detail = error instanceof Error ? error.message : String(error);
+      const normalized = detail.toLowerCase();
+      const userCancelled =
+        (typeof error === "object" && error !== null && "code" in error &&
+          (error as { code?: unknown }).code === 4001) ||
+        normalized.includes("user rejected") ||
+        normalized.includes("user denied") ||
+        normalized.includes("rejected the request") ||
+        normalized.includes("request cancelled") ||
+        normalized.includes("request canceled");
+
+      setNotice(
+        userCancelled
+          ? {
+              tone: "warn",
+              text: `${walletName} connection was cancelled. No wallet was connected. You can choose a wallet and try again.`,
+            }
+          : {
+              tone: "error",
+              text: `${walletName} could not connect: ${detail}`,
+            },
+      );
     }
-  }, []);
+  }, [refreshBalances]);
+
+  const cancelConnect = useCallback(() => {
+    if (wallet.status !== "connecting") return;
+    // Invalidates the unresolved provider promise. This resets our UI even
+    // though browser security means we cannot close the extension popup itself.
+    connectAttemptRef.current += 1;
+    connectedRef.current = null;
+    setWallet({ status: "disconnected", address: null, name: null });
+    setPhase("READY");
+    setNotice({
+      tone: "warn",
+      text: "Connection cancelled in UsageBar. If the wallet popup is still open, you can dismiss it there too.",
+    });
+  }, [wallet.status]);
 
   const disconnect = useCallback(async () => {
+    connectAttemptRef.current += 1;
     const connected = connectedRef.current;
     if (connected !== null) await disconnectWallet(connected.provider);
     connectedRef.current = null;
@@ -540,6 +588,6 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       atCeiling,
       balances,
     },
-    actions: { connect, disconnect, fund, open, close, dismissNotice },
+    actions: { connect, cancelConnect, disconnect, fund, open, close, dismissNotice },
   };
 }

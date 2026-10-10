@@ -112,7 +112,7 @@ The participant sees a selectable cap (5, 10, 25, or 50 TEST), not a fixed 50.00
 |---|---|---|
 | 1 — what is this | _not run_ | |
 | 2 — what is paid for | _not run_ | |
-| 3 — the 50.00 | _not run_ | |
+| 3 — the selected cap | _not run_ | |
 | 4 — "used" | _not run_ | |
 | 5 — closing the tab | _not run_ | |
 

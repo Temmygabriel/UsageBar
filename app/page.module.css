@@ -167,6 +167,7 @@
   .main { grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr); grid-template-areas: "proposition tab"; gap: 28px; padding-top: 22px; }
   .proposition { padding-bottom: clamp(100px, 14vw, 150px); }
   .proposition::after { height: clamp(100px, 14vw, 150px); }
+  .contractArt { height: clamp(100px, 14vw, 150px); }
   .steps { display: none; }
 }
 @media (min-width: 700px) and (max-width: 959px) {
@@ -222,7 +223,8 @@
     mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 0.24) 14%, #000 34%);
   }
 
-  .contractArt { bottom: -20px; height: 95px; }  .kicker { margin: 12px 0 18px; font-size: 0.72rem; }
+  .contractArt { bottom: -20px; height: 95px; }
+  .kicker { margin: 12px 0 18px; font-size: 0.72rem; }
   .kickerRule { width: 76px; }
   .proposition :global(.display) { font-size: clamp(2.5rem, 10.3vw, 3.9rem); line-height: 0.99; letter-spacing: -0.05em; text-wrap: balance; }
   .proposition :global(.display) span { display: block; }

@@ -44,6 +44,7 @@ export interface UsageTabProps {
   readonly decimals: number;
   readonly provenance: ValueProvenance;
   readonly facts: ChannelFacts | null;
+  readonly settlementProof: { readonly sealSignature: string; readonly distributeSignature: string } | null;
   readonly updates: readonly UsageUpdate[];
   readonly onOpen: () => void;
   readonly onClose: () => void;
@@ -88,6 +89,7 @@ export default function UsageTab({
   decimals,
   provenance,
   facts,
+  settlementProof,
   updates,
   onOpen,
   onClose,
@@ -317,6 +319,39 @@ export default function UsageTab({
               {abbreviate(facts.openTransaction, 12, 6)}
             </a>
           </div>
+          {confirmed !== null && confirmed.signature !== null && (
+            <div className={styles.proofRow}>
+              <span className={styles.proofLabel}>Last usage update</span>
+              <a className={styles.proofValue}
+                href={explorerTransactionUrl(confirmed.signature)}
+                target="_blank" rel="noopener noreferrer"
+                title={confirmed.signature}>
+                {abbreviate(confirmed.signature, 9, 6)}
+              </a>
+            </div>
+          )}
+          {settlementProof !== null && (
+            <>
+              <div className={styles.proofRow}>
+                <span className={styles.proofLabel}>Seal &amp; settle</span>
+                <a className={styles.proofValue}
+                  href={explorerTransactionUrl(settlementProof.sealSignature)}
+                  target="_blank" rel="noopener noreferrer"
+                  title={settlementProof.sealSignature}>
+                  {abbreviate(settlementProof.sealSignature, 9, 6)}
+                </a>
+              </div>
+              <div className={styles.proofRow}>
+                <span className={styles.proofLabel}>Distribution &amp; refund</span>
+                <a className={styles.proofValue}
+                  href={explorerTransactionUrl(settlementProof.distributeSignature)}
+                  target="_blank" rel="noopener noreferrer"
+                  title={settlementProof.distributeSignature}>
+                  {abbreviate(settlementProof.distributeSignature, 9, 6)}
+                </a>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

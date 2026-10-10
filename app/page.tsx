@@ -84,7 +84,7 @@ function ratePerSecond(atomicPerSecond: string, decimals: number): string {
 
 export default function Page() {
   const { state, actions } = useSession();
-  const { wallet, service, channel, facts, updates, notice, busy, balances } = state;
+  const { wallet, service, channel, facts, updates, notice, busy, balances, settlementProof } = state;
 
   const decimals = service?.decimals ?? 6;
   const unit = "TEST";
@@ -139,7 +139,6 @@ export default function Page() {
 
           <nav className={styles.nav} aria-label="Primary">
             <a href="#how">How it works</a>
-            <a href="#use-cases">Use cases</a>
             <a href="#evidence">Proof</a>
             <a href="#about">About</a>
           </nav>
@@ -243,6 +242,7 @@ export default function Page() {
             decimals={decimals}
             provenance={hasChannel ? "ON_CHAIN" : "PROPOSED"}
             facts={facts}
+            settlementProof={settlementProof}
             updates={updates}
             onOpen={onPrimary}
             onClose={actions.close}
@@ -251,34 +251,7 @@ export default function Page() {
           />
         </div>
 
-          <section className={styles.useCases} id="use-cases" aria-labelledby="use-cases-title">
-            <h2 className={styles.useCasesTitle} id="use-cases-title">Perfect for real services</h2>
-            <div className={styles.useCaseGrid}>
-              <article className={styles.useCase}>
-                <svg className={styles.useCaseIcon} viewBox="0 0 40 40" aria-hidden="true">
-                  <rect x="4" y="11" width="32" height="23" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
-                  <circle cx="20" cy="22.5" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
-                  <path d="M11 11L14 6H23L26 11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                </svg>
-                <div><h3>Camera rental</h3><p>Pay for actual time used</p></div>
-              </article>
-              <article className={styles.useCase}>
-                <svg className={styles.useCaseIcon} viewBox="0 0 40 40" aria-hidden="true">
-                  <path d="M10 29C5 29 4 25 4 22C4 18 7 15 11 15C12 9 17 6 22 8C27 8 30 12 30 16C35 16 37 19 37 23C37 27 34 29 30 29Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                </svg>
-                <div><h3>Compute</h3><p>Pay for actual usage</p></div>
-              </article>
-              <article className={styles.useCase}>
-                <svg className={styles.useCaseIcon} viewBox="0 0 40 40" aria-hidden="true">
-                  <circle cx="11" cy="10" r="3" fill="none" stroke="currentColor" strokeWidth="2" />
-                  <path d="M11 13V35M24 5V25M24 31V35M34 5V15M34 21V35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  <circle cx="24" cy="28" r="3" fill="var(--paper)" stroke="currentColor" strokeWidth="2" />
-                  <circle cx="34" cy="18" r="3" fill="var(--paper)" stroke="currentColor" strokeWidth="2" />
-                </svg>
-                <div><h3>Tools &amp; APIs</h3><p>Pay for actual calls</p></div>
-              </article>
-            </div>
-          </section>
+    
       </main>
 
       <section className={styles.howSection} id="how" aria-labelledby="how-title">
@@ -342,8 +315,7 @@ export default function Page() {
           </ul>
           <div className={styles.footerBottom}>
             <p className={styles.footerNote}>
-              These are standalone protocol-verification transactions, not transactions from the tab above;
-              a live session has its own proof. Camera usage is simulated. Payment-channel transactions are real
+              These independent protocol-verification transactions cover different steps; they are not one transaction sequence or transactions from the tab above. A live session has its own proof. Camera usage is simulated. Payment-channel transactions are real
               on Devnet, but TEST tokens have no real-world value and this hackathon prototype has not been audited.
             </p>
             <nav className={styles.footerLinks} aria-label="Project details">

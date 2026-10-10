@@ -71,6 +71,7 @@ export interface SessionState {
   readonly state: ProductState;
   readonly channel: SessionChannel | null;
   readonly facts: ChannelFacts | null;
+  readonly settlementProof: { readonly sealSignature: string; readonly distributeSignature: string } | null;
   readonly updates: readonly UsageUpdate[];
   readonly notice: Notice | null;
   readonly busy: boolean;
@@ -143,6 +144,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
   const [service, setService] = useState<ServiceDescription | null>(null);
   const [channel, setChannel] = useState<SessionChannel | null>(null);
   const [openTransaction, setOpenTransaction] = useState<string | null>(null);
+  const [settlementProof, setSettlementProof] = useState<SessionState["settlementProof"]>(null);
   const [updates, setUpdates] = useState<readonly UsageUpdate[]>([]);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
@@ -271,6 +273,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     // tab, and the deposit stays where the chain put it.
     setChannel(null);
     setOpenTransaction(null);
+    setSettlementProof(null);
     setUpdates([]);
     setBalances(null);
     setPhase("READY");
@@ -315,6 +318,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
 
     setBusy(true);
     setNotice(null);
+    setSettlementProof(null);
     setPhase("OPENING");
 
     try {
@@ -468,6 +472,10 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       setChannel((previous) =>
         previous === null ? previous : { ...previous, settled: result.settled, status: 3 },
       );
+      setSettlementProof({
+        sealSignature: result.sealSignature,
+        distributeSignature: result.distributeSignature,
+      });
       setPhase("SETTLED");
       if (connected !== null) forget(connected.address);
 
@@ -523,6 +531,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       state: phase,
       channel,
       facts,
+      settlementProof,
       updates,
       notice,
       busy,

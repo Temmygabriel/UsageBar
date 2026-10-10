@@ -276,9 +276,9 @@ export default function UsageTab({
           <div className={styles.settlementCell}>
             <span className={styles.settlementLabel}>Settled (used)</span>
             <strong className={styles.settlementValue}>
-              {state === "SETTLED" && facts !== null && settlementProof !== null ? formatAmount(settlementProof.paidToProvider, decimals) : "—"}
+              {state === "SETTLED" && facts !== null ? formatAmount(facts.settled, decimals) : "—"}
             </strong>
-            <span className={styles.settlementHint}>{state === "SETTLED" && settlementProof !== null ? "Paid on chain" : "Confirmed at close"}</span>
+            <span className={styles.settlementHint}>{state === "SETTLED" && settlementProof !== null ? `${formatAmount(settlementProof.paidToProvider, decimals)} ${unitLabel} paid to provider` : "Confirmed at close"}</span>
           </div>
           <div className={styles.settlementCell}>
             <span className={styles.settlementLabel}>Returned (unused)</span>

@@ -199,3 +199,9 @@
   .reviewResult > header { flex-direction: column; }
   .resultType { text-align: left; }
 }
+
+.readyAction { padding: 0 30px 16px; }
+.readyAction .button { min-height: 50px; padding: 13px 18px; font-size: .85rem; letter-spacing: .02em; }
+.readyAction .pending { margin: 9px 0 0; }
+@media (max-width: 1359px) { .readyAction { padding-left: 24px; padding-right: 24px; } }
+@media (max-width: 699px) { .readyAction { padding: 0 18px 14px; } .readyAction .button { min-height: 48px; } }

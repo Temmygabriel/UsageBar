@@ -143,10 +143,11 @@ try {
     }
 
     await dialog.getByRole("button", { name: "Connect", exact: true }).click();
-    await walletPage.locator("header [role='status']").getByText(/Connecting to Phantom/).waitFor({
-      state: "visible",
-      timeout: 3000,
-    });
+    const connectingStatus = walletPage.locator("header [role='status']");
+    await connectingStatus.waitFor({ state: "visible", timeout: 3000 });
+    if (!(await connectingStatus.innerText()).includes("Connecting to Phantom")) {
+      throw new Error("Header did not identify the selected wallet while connecting.");
+    }
 
     if (mode === "hang") {
       // This prompt intentionally never settles. UsageBar's own Cancel must

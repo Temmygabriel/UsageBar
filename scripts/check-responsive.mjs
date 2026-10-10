@@ -91,6 +91,12 @@ try {
         const node = document.querySelector('article[aria-label="Usage tab"]');
         return Boolean(node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0);
       })(),
+      primaryActionVisibleInFirstViewport: (() => {
+        const node = document.querySelector('article[aria-label="Usage tab"] button');
+        if (!node) return false;
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.bottom <= window.innerHeight;
+      })(),
       cameraIconCount: document.querySelectorAll('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]').length,
       simulatedCameraDisclosure: document.body.innerText.includes("Camera usage is simulated"),
     }));
@@ -98,6 +104,7 @@ try {
     const overflow = measurement.documentWidth > width || measurement.bodyWidth > width;
     const valid = measurement.headingVisible
       && measurement.usageTabVisible
+      && measurement.primaryActionVisibleInFirstViewport
       && measurement.headingText === "Pay for what you actually use."
       && measurement.headingLinesSeparated
       && measurement.cameraIconCount === 1
@@ -115,6 +122,7 @@ try {
         reasons: [
           !measurement.headingVisible ? "hero proposition is not visible" : null,
           !measurement.usageTabVisible ? "Usage Tab is not visible" : null,
+          !measurement.primaryActionVisibleInFirstViewport ? "primary action is below the first viewport" : null,
           measurement.headingText !== "Pay for what you actually use." ? `incorrect hero headline text: "${measurement.headingText}"` : null,
           !measurement.headingLinesSeparated ? "hero headline lines are joined or not displayed as separate lines" : null,
           measurement.cameraIconCount !== 1 ? "outline camera icon is missing or duplicated inside Usage Tab" : null,

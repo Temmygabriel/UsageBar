@@ -154,6 +154,18 @@
   .evidence { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 28px; }
 }
 
+/* Keep the live Usage Tab in the first screen on compact tablet widths. */
+@media (min-width: 960px) and (max-width: 1079px) {
+  .main { grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr); grid-template-areas: "proposition tab"; gap: 28px; padding-top: 22px; }
+  .proposition { padding-bottom: clamp(100px, 14vw, 150px); }
+  .proposition::after { height: clamp(100px, 14vw, 150px); }
+  .steps { display: none; }
+}
+@media (min-width: 700px) and (max-width: 959px) {
+  .proposition { padding-bottom: 90px; }
+  .proposition::after { height: 90px; }
+  .steps { display: none; }
+}
 @media (min-width: 1080px) {
   .nav { display: flex; }
   .network { display: inline-flex; }
@@ -179,9 +191,9 @@
   .network { display: none; }
   .headerActions .button { min-height: 38px; padding: 8px 10px; font-size: 0.74rem; }
   .main { padding: 14px 16px 26px; gap: 32px; }
-  .proposition { padding-bottom: 125px; }
+  .proposition { padding-bottom: 72px; }
   .proposition::after {
-    left: -16px; right: -16px; height: 125px;
+    left: -16px; right: -16px; height: 72px;
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 0.24) 14%, #000 34%);
     mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 0.24) 14%, #000 34%);
   }
@@ -190,7 +202,7 @@
   .proposition :global(.display) { font-size: clamp(2.5rem, 10.3vw, 3.9rem); line-height: 0.99; letter-spacing: -0.05em; text-wrap: balance; }
   .proposition :global(.display) span { display: block; }
   .lede { margin-top: 22px; font-size: clamp(1.12rem, 4.4vw, 1.35rem); }
-  .steps { margin-top: 36px; gap: 0; }
+  .steps { display: none; }
   .step { padding-right: 8px; }
   .step + .step { padding-left: 12px; }
   .stepIcon { width: 34px; height: 34px; margin-bottom: 10px; }

@@ -324,6 +324,31 @@ export default function Page() {
               <span>Pay for what was used. Get the rest back.</span>
             </p>
 
+            <div className={styles.contractArt} aria-hidden="true">
+              <svg viewBox="0 0 520 300" role="presentation">
+                <path d="M155 43h210v230H155z" fill="var(--paper-raised)" stroke="var(--rule-strong)" strokeWidth="1.2" />
+                <path d="M176 66h112" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" />
+                <text x="176" y="89" fill="var(--ink-muted)" fontSize="9" letterSpacing="1.8" fontFamily="monospace">SERVICE AGREEMENT · 04</text>
+                <text x="176" y="115" fill="var(--ink)" fontSize="19" fontFamily="Georgia, serif">Terms &amp; conditions</text>
+                <path d="M176 139h164M176 150h150M176 161h165M176 181h153M176 192h164M176 203h120" stroke="var(--rule-strong)" strokeWidth="1.5" strokeLinecap="round" />
+                <rect x="176" y="221" width="126" height="31" rx="2" fill="var(--accent-quiet)" stroke="var(--accent)" strokeWidth="1" />
+                <path d="M190 237l5 5 10-12" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <text x="214" y="241" fill="var(--ink)" fontSize="9" letterSpacing="1" fontFamily="monospace">REVIEWED</text>
+                <g transform="translate(330 145) rotate(5)">
+                  <rect x="0" y="0" width="142" height="111" rx="2" fill="var(--paper)" stroke="var(--rule-strong)" strokeWidth="1.2" />
+                  <text x="15" y="21" fill="var(--ink-muted)" fontSize="8" letterSpacing="1.2" fontFamily="monospace">AI REVIEW</text>
+                  <path d="M15 35h111M15 45h98M15 55h108M15 65h88" stroke="var(--rule-strong)" strokeWidth="1.4" strokeLinecap="round" />
+                  <circle cx="28" cy="85" r="8" fill="var(--success-quiet)" stroke="var(--success)" />
+                  <path d="M24 85l3 3 5-6" fill="none" stroke="var(--success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <text x="42" y="88" fill="var(--ink)" fontSize="8" letterSpacing=".7" fontFamily="monospace">CLAUSE CHECK</text>
+                </g>
+                <path d="M72 235h47M96 211v48" stroke="var(--accent)" strokeWidth="1.2" opacity=".5" />
+                <circle cx="96" cy="235" r="15" fill="none" stroke="var(--accent)" strokeWidth="1.2" opacity=".65" />
+                <circle cx="429" cy="57" r="21" fill="var(--success-quiet)" stroke="var(--success)" strokeWidth="1.2" />
+                <path d="M420 57l6 6 12-14" fill="none" stroke="var(--success)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+
             <ol className={styles.steps} aria-label="How UsageBar works">
               <li className={styles.step}>
                 <svg className={styles.stepIcon} viewBox="0 0 48 48" aria-hidden="true">
@@ -342,8 +367,8 @@ export default function Page() {
                   <rect x="22" y="16" width="7" height="22" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
                   <rect x="34" y="7" width="7" height="31" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
                 </svg>
-                <h2 className={styles.stepTitle}><span>2.</span> Use the service</h2>
-                <p>Run real contract reviews through Groq AI.</p>
+                <h2 className={styles.stepTitle}><span>2.</span> Review a contract</h2>
+                <p>Each valid Groq result adds one signed usage voucher.</p>
               </li>
               <li className={styles.step}>
                 <svg className={styles.stepIcon} viewBox="0 0 48 48" aria-hidden="true">

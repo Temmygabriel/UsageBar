@@ -130,10 +130,16 @@ export default function Page() {
     : "Billed by the second";
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} id="top">
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <span className={styles.wordmark}>UsageBar</span>
+          <a className={styles.wordmark} href="#top" aria-label="UsageBar home">
+            <svg className={styles.brandMark} viewBox="0 0 36 36" aria-hidden="true">
+              <rect x="1" y="1" width="34" height="34" rx="5" fill="var(--accent)" />
+              <path d="M10 24V14M18 24V9M26 24V17M8 27H28" fill="none" stroke="var(--accent-ink)" strokeWidth="2.6" strokeLinecap="round" />
+            </svg>
+            <span>UsageBar</span>
+          </a>
 
           <nav className={styles.nav} aria-label="Primary">
             <a href="#how">How it works</a>
@@ -173,14 +179,20 @@ export default function Page() {
       </header>
 
       <main className={styles.main}>
-        <section className={styles.proposition} id="how">
+        <section className={styles.proposition} aria-labelledby="hero-title">
           <span className="eyebrow">Camera rental · pay per use</span>
 
-          <h1 className="display">Pay for what you actually use.</h1>
+          <h1 className="display" id="hero-title">Pay for what you actually use.</h1>
 
           <p className="lede">
             Open one payment tab. Let usage build the bill. Settle once at the end — and get back
             whatever you did not spend.
+          </p>
+
+          <p className={styles.demoNote}>
+            <span className={styles.demoNoteMark} aria-hidden="true">i</span>
+            Camera usage is simulated in this demo. The payment-channel transactions are real on
+            Solana Devnet; TEST tokens have no real-world value.
           </p>
 
           <ol className={styles.steps}>
@@ -222,6 +234,30 @@ export default function Page() {
         </div>
       </main>
 
+      <section className={styles.howSection} id="how" aria-labelledby="how-title">
+        <div className={styles.howInner}>
+          <p className="eyebrow">The idea is simple</p>
+          <h2 className={styles.howTitle} id="how-title">One tab. Usage that adds up. One settlement.</h2>
+          <div className={styles.howGrid}>
+            <article className={styles.howStep}>
+              <span className={styles.howIndex}>01</span>
+              <h3>Open a tab</h3>
+              <p>Connect your wallet and authorize a maximum amount in test tokens. The deposit is held in a real payment channel.</p>
+            </article>
+            <article className={styles.howStep}>
+              <span className={styles.howIndex}>02</span>
+              <h3>Use the service</h3>
+              <p>The demo meter records cumulative usage. Updates are signed, while the usage experience does not require a separate payment transaction for every tick.</p>
+            </article>
+            <article className={styles.howStep}>
+              <span className={styles.howIndex}>03</span>
+              <h3>Close and settle</h3>
+              <p>The final settlement pays the recorded usage and returns the unused remainder, with the outcome verifiable on Solana Devnet.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
       <footer className={styles.footer} id="evidence">
         <div className={styles.footerInner}>
           <h2 className={styles.footerTitle}>Verified on Solana {CLUSTER}</h2>
@@ -234,7 +270,7 @@ export default function Page() {
                   className={styles.evidenceProof}
                   href={explorerTransactionUrl(entry.signature)}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                 >
                   {entry.signature}
                 </a>

@@ -138,3 +138,17 @@ permanently unspendable, because no one holds that private key.
 **This is not yet tested. It is a hypothesis, not a finding.** It is resolved by
 running `distribute` against devnet, which is planned for the settlement phase.
 Until then the relevant `CLAIM_STATUS.md` row stays `UNVERIFIED`.
+
+
+---
+
+## UsageBar UI branding assets — 2026-10-10
+
+| Asset | Source | Status |
+|---|---|---|
+| UsageBar brand mark in header | Original inline SVG authored for this repository | Original project asset; no external source |
+| Browser favicon | `app/icon.svg`, original SVG using the same bar/meter motif | Original project asset; no external source |
+| Camera-rental illustration in Usage Tab | Original inline SVG illustration authored for this repository | Original project asset; decorative only |
+| Fonts | Fraunces, IBM Plex Sans, IBM Plex Mono via `next/font` | Existing font setup retained |
+
+The illustration is a visual cue for the simulated camera-rental use case. It is not a claim that the demo has camera hardware integration or live camera telemetry. The interface explicitly says camera usage is simulated and distinguishes that from the real Solana Devnet payment-channel transactions.

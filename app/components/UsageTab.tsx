@@ -127,7 +127,12 @@ export default function UsageTab({
     <article className={styles.tab} aria-label="Usage tab">
       <header className={styles.head}>
         <span className={styles.tabLabel}>Usage Tab</span>
-        <span className={["chip", chip.tone].filter(Boolean).join(" ")}>
+        <span
+          className={["chip", chip.tone].filter(Boolean).join(" ")}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {chip.tone === "chip-verified" && <span className="chip-dot" />}
           {chip.label}
         </span>
@@ -136,9 +141,25 @@ export default function UsageTab({
       <div className={styles.perforation} role="presentation" />
 
       <div className={styles.service}>
-        <span className="eyebrow">Service</span>
-        <h2 className={styles.serviceName}>{serviceName}</h2>
-        <p className={styles.serviceMeta}>{serviceMeta}</p>
+        <div className={styles.serviceCopy}>
+          <span className="eyebrow">Camera rental · demo service</span>
+          <h2 className={styles.serviceName}>{serviceName}</h2>
+          <p className={styles.serviceMeta}>{serviceMeta}</p>
+        </div>
+        <svg className={styles.cameraIllustration} viewBox="0 0 144 92" aria-hidden="true">
+          <ellipse cx="73" cy="80" rx="51" ry="6" fill="#d8cebf" opacity="0.62" />
+          <path d="M35 28 43 16H69L78 28Z" fill="#bcb09c" />
+          <rect x="18" y="26" width="108" height="51" rx="7" fill="#252521" />
+          <rect x="23" y="30" width="98" height="42" rx="4" fill="#3b3932" />
+          <rect x="30" y="34" width="25" height="4" rx="2" fill="#8d867b" />
+          <circle cx="108" cy="36" r="2.5" fill="#c8491b" />
+          <circle cx="73" cy="51" r="24" fill="#181a17" stroke="#bca887" strokeWidth="3" />
+          <circle cx="73" cy="51" r="18" fill="#28302d" stroke="#6e776e" strokeWidth="1.5" />
+          <circle cx="73" cy="51" r="11" fill="#101512" stroke="#9a907c" strokeWidth="1.5" />
+          <circle cx="68" cy="46" r="4" fill="#d6d3c7" opacity="0.84" />
+          <path d="M29 64H43" stroke="#8d867b" strokeWidth="2" strokeLinecap="round" />
+          <path d="M102 63h10" stroke="#8d867b" strokeWidth="2" strokeLinecap="round" />
+        </svg>
       </div>
 
       <div className={styles.amounts}>
@@ -172,9 +193,10 @@ export default function UsageTab({
           className={styles.meterTrack}
           role="meter"
           aria-valuemin={0}
-          aria-valuemax={Number(ceiling)}
-          aria-valuenow={Number(settled)}
-          aria-label={`Usage: ${formatAmount(settled, decimals)} of ${formatAmount(ceiling, decimals)} ${unitLabel}`}
+          aria-valuemax={100}
+          aria-valuenow={Number((fraction * 100).toFixed(2))}
+          aria-valuetext={`${formatAmount(settled, decimals)} ${unitLabel} used of ${formatAmount(ceiling, decimals)} ${unitLabel} authorized`}
+          aria-label="Usage progress"
         >
           <div
             className={meterFillClass}

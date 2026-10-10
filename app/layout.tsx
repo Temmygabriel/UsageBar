@@ -40,9 +40,28 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://usagebar.vercel.app"),
   title: "UsageBar — pay for what you actually use",
   description:
     "Open one payment tab, let usage build the bill, settle once at the end. A usage-based payment tab built on Solana Payment Channels.",
+  applicationName: "UsageBar",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "UsageBar",
+    title: "UsageBar — pay for what you actually use",
+    description:
+      "Open one payment tab, let usage build the bill, settle once at the end.",
+  },
+  twitter: {
+    card: "summary",
+    title: "UsageBar — pay for what you actually use",
+    description:
+      "A usage-based payment tab built on Solana Payment Channels.",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

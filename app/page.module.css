@@ -31,10 +31,23 @@
 }
 
 .wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
   font-family: var(--font-display), ui-serif, Georgia, serif;
   font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.brandMark {
+  display: block;
+  width: 32px;
+  height: 32px;
+  flex: none;
 }
 
 /* Section 0C: "a small amount of navigation" and "do not create a 10-item
@@ -145,6 +158,162 @@
   font-family: var(--font-mono), ui-monospace, monospace;
   color: var(--ink-faint);
   font-size: 0.6875rem;
+}
+
+.demoNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 54ch;
+  padding: 12px 14px;
+  border-left: 2px solid var(--accent);
+  background: var(--paper-sunken);
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.demoNoteMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  margin-top: 1px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 50%;
+  color: var(--ink);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+/* A real explanation target for the header link. The rules and numbered
+   steps continue the receipt/document language rather than adding a card wall. */
+.howSection {
+  border-top: var(--hairline) solid var(--rule);
+  background: color-mix(in srgb, var(--paper-sunken) 42%, var(--paper));
+}
+
+.howInner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-5);
+}
+
+.howTitle {
+  max-width: 22ch;
+  margin-top: var(--space-3);
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-size: clamp(1.8rem, 3.6vw, 2.65rem);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.howGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: var(--space-6);
+  border-top: var(--hairline) solid var(--rule-strong);
+}
+
+.howStep {
+  min-width: 0;
+  padding: var(--space-5) var(--space-4) var(--space-4) 0;
+  border-bottom: var(--hairline) solid var(--rule);
+}
+
+.howIndex {
+  display: block;
+  margin-bottom: var(--space-3);
+  color: var(--accent);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+}
+
+.howStep h3 {
+  margin-bottom: var(--space-2);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.howStep p {
+  max-width: 42ch;
+  color: var(--ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+@media (min-width: 720px) {
+  .howGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .howStep {
+    padding: var(--space-5) var(--space-5) var(--space-4) 0;
+    border-bottom: 0;
+  }
+
+  .howStep + .howStep {
+    padding-left: var(--space-5);
+    border-left: var(--hairline) solid var(--rule);
+  }
+}
+
+@media (max-width: 520px) {
+  .headerInner {
+    gap: var(--space-3);
+    padding-inline: var(--space-4);
+  }
+
+  .wordmark {
+    gap: 7px;
+    font-size: 1.08rem;
+  }
+
+  .brandMark {
+    width: 28px;
+    height: 28px;
+  }
+
+  .headerActions {
+    gap: var(--space-2);
+  }
+
+  .headerActions .button {
+    padding: 10px 12px;
+    font-size: 0.69rem;
+    letter-spacing: 0.04em;
+  }
+
+  .main {
+    padding-inline: var(--space-4);
+    gap: var(--space-6);
+  }
+
+  .proposition .display {
+    font-size: clamp(2.55rem, 12vw, 3.6rem);
+  }
+
+  .steps {
+    gap: var(--space-2);
+    font-size: 0.75rem;
+  }
+
+  .steps li {
+    gap: var(--space-2);
+  }
+
+  .steps li + li::before {
+    width: 10px;
+  }
+
+  .footerInner,
+  .howInner {
+    padding-inline: var(--space-4);
+  }
 }
 
 /* ----------------------------------------------------------------- live -- */

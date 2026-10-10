@@ -554,7 +554,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       const clientAmount = usageAmountRef.current;
       const used = clientAmount > onChainAmount ? clientAmount : onChainAmount;
       const signature = used > onChainAmount ? voucherSignatureRef.current : null;
-      const result = await closeSession(current.address);
+      const result = await closeSession(current.address, used.toString(), signature);
 
       // The numbers below are the ones the server measured by reading balances
       // before and after the distribution — what actually moved, not what the

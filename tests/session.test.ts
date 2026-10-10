@@ -4,7 +4,7 @@ import { formatAmount, formatAtomic, formatForDisplay, groupThousands, parseAmou
 import {
   abbreviate,
   describeMeter,
-  lastConfirmedUpdate,
+  lastSignedUpdate,
   meterFraction,
   reconciles,
   unusedRemainder,
@@ -155,27 +155,17 @@ describe("reconciliation (build spec Section 14)", () => {
   });
 });
 
-describe("lastConfirmedUpdate", () => {
-  const update = (sequence: number, cumulative: bigint, signature: string | null): UsageUpdate => ({
-    sequence,
-    cumulative,
-    signature,
+describe("lastSignedUpdate", () => {
+  const update = (sequence: number, cumulative: bigint, voucherSignature: string): UsageUpdate => ({
+    sequence, cumulative, voucherSignature,
   });
-
-  it("returns null when nothing has been confirmed", () => {
-    expect(lastConfirmedUpdate([])).toBeNull();
-    expect(lastConfirmedUpdate([update(1, 100n, null)])).toBeNull();
+  it("returns null before any successful usage request", () => {
+    expect(lastSignedUpdate([])).toBeNull();
   });
-
-  it("skips a pending update and returns the last confirmed one", () => {
-    // Section 12 requires proof for a final state. An unconfirmed update is
-    // not proof, so it must not become the number the tab reports.
-    const updates = [
-      update(1, 100n, "sig-a"),
-      update(2, 200n, "sig-b"),
-      update(3, 300n, null),
-    ];
-    expect(lastConfirmedUpdate(updates)?.cumulative).toBe(200n);
+  it("returns the most recent signed cumulative voucher", () => {
+    const updates = [update(1, 1_000_000n, "voucher-a"), update(2, 2_000_000n, "voucher-b")];
+    expect(lastSignedUpdate(updates)?.cumulative).toBe(2_000_000n);
+    expect(lastSignedUpdate(updates)?.voucherSignature).toBe("voucher-b");
   });
 });
 

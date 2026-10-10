@@ -145,7 +145,8 @@ try {
       });
     }
 
-    await dialog.getByRole("button", { name: "Connect", exact: true }).click();
+    const phantomOption = dialog.locator(".walletOption").filter({ hasText: /^Phantom/ });
+    await phantomOption.getByRole("button", { name: "Connect", exact: true }).click();
     if (mode === "hang") {
       // The never-settling provider keeps the pending state open long enough to
       // assert the selected wallet label and Cancel action deterministically.

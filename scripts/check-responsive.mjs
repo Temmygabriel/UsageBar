@@ -4,7 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 const widths = [320, 360, 375, 390, 430, 768, 1024, 1280, 1440, 1600, 1920];
 const baseUrl = process.env.USAGEBAR_BASE_URL ?? "http://127.0.0.1:3000";
-const outputDir = "artifacts/viewport-inspection";
+const outputDir = process.env.USAGEBAR_ARTIFACT_DIR ?? "artifacts/viewport-inspection";
 const failures = [];
 const results = [];
 

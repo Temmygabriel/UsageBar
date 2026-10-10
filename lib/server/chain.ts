@@ -588,7 +588,7 @@ export interface UsageResult { readonly advanced:boolean; readonly cumulative:st
 /** Issue a cumulative usage voucher off-chain. No Solana transaction is sent here. */
 export async function commitUsage(config:ServerConfig,channelAddress:string,previousCumulative:string,previousVoucherSignature:string|null):Promise<UsageResult>{
  const current=await readChannel(config,channelAddress);if(current===null)throw new Error(`No channel at ${channelAddress}. It may already have been closed.`);
- const {channel}=current;if(channel.status!==0)throw new Error(`The channel is ${CHANNEL_STATUS[channel.status]??"in an unknown state"}; usage can only be metered while it is Open.`);
+ const {channel}=current;if(channel.status!==0)return{advanced:false,cumulative:channel.settled.toString(),voucherSignature:null,reason:`The channel is ${CHANNEL_STATUS[channel.status]??"in an unknown state"}; usage can only be metered while it is Open.`};
  let previous:bigint;try{previous=BigInt(previousCumulative);}catch{throw new Error("The previous cumulative amount must be an integer atomic-unit value.");}
  if(previous<channel.settled||previous>channel.deposit)throw new Error("The previous usage amount is outside this channel's verified range.");
  const enc=getAddressEncoder(),id=address(channelAddress),seed=config.operatorSecretKey.subarray(0,32);

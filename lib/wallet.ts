@@ -76,6 +76,9 @@ export interface WalletProvider {
   readonly isSolflare?: boolean;
   readonly isOKXWallet?: boolean;
   readonly isOkxWallet?: boolean;
+  readonly name?: string;
+  readonly chains?: readonly string[];
+  readonly accounts?: readonly { address: string }[];
   readonly publicKey?: { toString(): string } | null;
   readonly features?: Record<string, unknown>;
   connect?(options?: unknown): Promise<{ publicKey?: { toString(): string } }>;
@@ -89,12 +92,52 @@ interface FeatureCall {
   (input: unknown): Promise<unknown>;
 }
 
+type StandardWallet = WalletProvider & { readonly name: string };
+
 type InjectedWindow = Window & {
   phantom?: { solana?: WalletProvider };
   solana?: WalletProvider;
   solflare?: WalletProvider | { solana?: WalletProvider };
   okxwallet?: { solana?: WalletProvider };
 };
+
+let standardRegistryInitialized = false;
+const standardWallets: StandardWallet[] = [];
+
+/**
+ * Minimal Wallet Standard registration bridge. It follows the standard app-ready /
+ * register-wallet event handshake without adding another client dependency.
+ */
+function getRegisteredStandardWallets(): readonly StandardWallet[] {
+  if (typeof window === "undefined") return [];
+  if (standardRegistryInitialized) return standardWallets;
+  standardRegistryInitialized = true;
+
+  const api = Object.freeze({
+    register: (...wallets: StandardWallet[]) => {
+      for (const wallet of wallets) {
+        if (!standardWallets.includes(wallet)) standardWallets.push(wallet);
+      }
+    },
+  });
+
+  window.addEventListener("wallet-standard:register-wallet", (event: Event) => {
+    const callback = (event as CustomEvent<((api: typeof api) => void)>).detail;
+    if (typeof callback === "function") callback(api);
+  });
+
+  // Wallet Standard wallets that were injected before this page still get a
+  // chance to register when the app announces readiness.
+  window.dispatchEvent(new CustomEvent("wallet-standard:app-ready", { detail: api }));
+  return standardWallets;
+}
+
+function matchesWalletName(name: string, id: WalletId): boolean {
+  const lower = name.toLowerCase();
+  if (id === "solflare") return lower.includes("solflare");
+  if (id === "phantom") return lower.includes("phantom");
+  return lower.includes("okx");
+}
 
 function providerLike(value: unknown): WalletProvider | null {
   if (value === null || typeof value !== "object") return null;
@@ -109,8 +152,14 @@ function providerLike(value: unknown): WalletProvider | null {
 /** Resolve one explicitly selected wallet without accidentally using another extension. */
 export function getWalletProvider(id: WalletId): WalletProvider | null {
   if (typeof window === "undefined") return null;
-  const w = window as InjectedWindow;
 
+  const standardWallet = getRegisteredStandardWallets().find(
+    (wallet) => matchesWalletName(wallet.name, id) &&
+      wallet.chains?.some((chain) => chain.startsWith("solana:")) !== false,
+  );
+  if (standardWallet !== undefined) return standardWallet;
+
+  const w = window as InjectedWindow;
   if (id === "phantom") {
     return providerLike(w.phantom?.solana) ??
       (w.solana?.isPhantom === true ? providerLike(w.solana) : null);
@@ -221,7 +270,12 @@ export async function connectWallet(
 /** Disconnect, if the wallet supports it. Failure here is not worth surfacing. */
 export async function disconnectWallet(provider: WalletProvider): Promise<void> {
   try {
-    await provider.disconnect?.();
+    const standardDisconnect = featureMethod(provider, "standard:disconnect", "disconnect");
+    if (standardDisconnect !== null) {
+      await standardDisconnect({});
+    } else {
+      await provider.disconnect?.();
+    }
   } catch {
     // A wallet that refuses to disconnect has still stopped being used by this
     // page; there is nothing useful to tell the user.

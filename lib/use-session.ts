@@ -109,7 +109,6 @@ interface RememberedChannel {
   readonly usageAtomic?: string;
   readonly voucherSignature?: string | null;
   readonly updateCount?: number;
-  readonly lastExtraction?: ExtractionResult | null;
   readonly serviceStarted?: boolean;
 }
 
@@ -130,7 +129,6 @@ function recall(address: string): RememberedChannel | null {
       usageAtomic: typeof parsed.usageAtomic === "string" && /^\\d+$/.test(parsed.usageAtomic) ? parsed.usageAtomic : "0",
       voucherSignature: typeof parsed.voucherSignature === "string" ? parsed.voucherSignature : null,
       updateCount: typeof parsed.updateCount === "number" && Number.isSafeInteger(parsed.updateCount) ? parsed.updateCount : 0,
-      lastExtraction: parsed.lastExtraction ?? null,
       serviceStarted: parsed.serviceStarted === true,
     };
   } catch { return null; }
@@ -296,7 +294,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
           setUsageAmount(amount);
           setVoucherSignature(signature);
           setTaskCount(count);
-          setLastExtraction(remembered.lastExtraction ?? null);
+          setLastExtraction(null);
           setUpdates(signature !== null && amount > BigInt(session.channel.settled)
             ? [{ sequence: Math.max(1, count), cumulative: amount, voucherSignature: signature }]
             : []);
@@ -465,7 +463,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       setTaskCount(0);
       setLastExtraction(null);
       setPhase(initialAmount > 0n ? "ACTIVE" : "FUNDED");
-      remember(connected.address, { channel: built.channel, openTransaction: signature, usageAtomic: initialAmount.toString(), voucherSignature: null, updateCount: 0, lastExtraction: null, serviceStarted: false });
+      remember(connected.address, { channel: built.channel, openTransaction: signature, usageAtomic: initialAmount.toString(), voucherSignature: null, updateCount: 0, serviceStarted: false });
       setNotice({ tone: "success", text: `Your ${(BigInt(found.deposit) / (10n ** BigInt(service.decimals))).toString()} TEST cap is escrowed. It is the maximum, not the final charge. Start the AI review service when ready.` });
     } catch (error) {
       setPhase("READY");
@@ -489,7 +487,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     setPhase("ACTIVE");
     setNotice({ tone: "info", text: "AI contract review is ready. Each successful Groq review costs 1.00 TEST. Usage vouchers stay off-chain until you close the tab." });
     if (connected !== null && openTransaction !== null) {
-      remember(connected.address, { channel: current.address, openTransaction, usageAtomic: usageAmountRef.current.toString(), voucherSignature: voucherSignatureRef.current, updateCount: taskCount, lastExtraction, serviceStarted: true });
+      remember(connected.address, { channel: current.address, openTransaction, usageAtomic: usageAmountRef.current.toString(), voucherSignature: voucherSignatureRef.current, updateCount: taskCount, serviceStarted: true });
     }
   }, [phase, openTransaction, taskCount, lastExtraction]);
 

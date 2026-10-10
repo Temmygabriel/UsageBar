@@ -139,6 +139,8 @@ export default function UsageTab({
   const amountClass = [styles.rowValue, onChain ? "" : styles.rowValueMuted]
     .filter(Boolean)
     .join(" ");
+  // A signed voucher is not yet a chain-settled balance; keep its amount visually muted until close is verified.
+  const usageAmountClass = [styles.rowValue, state === "SETTLED" ? "" : styles.rowValueMuted].filter(Boolean).join(" ");
 
   // The primary action is single and dominant, per Section 0C. It is disabled
   // while a transaction is in flight so it cannot be double-submitted, and
@@ -204,15 +206,15 @@ export default function UsageTab({
         </div>
 
         <div className={styles.row}>
-          <span className={styles.rowLabel}>{state === "SETTLED" ? "Settled (used)" : "Used (so far)"}</span>
-          <span className={amountClass}>
+          <span className={styles.rowLabel}>{state === "SETTLED" ? "Settled (used)" : state === "ACTIVE" && taskCount > 0 ? "Used (off-chain vouchers)" : "Used (so far)"}</span>
+          <span className={usageAmountClass}>
             {formatAmount(settled, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
           </span>
         </div>
 
         <div className={styles.row}>
-          <span className={styles.rowLabel}>{state === "SETTLED" ? "Returned (unused)" : onChain ? "Remaining" : "Not committed"}</span>
+          <span className={styles.rowLabel}>{state === "SETTLED" ? "Returned (unused)" : onChain ? "Unspent cap (not refunded yet)" : "Not committed"}</span>
           <span className={amountClass}>
             {formatAmount(displayedRemainder, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
@@ -318,7 +320,7 @@ export default function UsageTab({
           </button>
         )}
 
-        <p className={styles.notice}>Payment-channel transactions are real on Solana Devnet. Groq supplies the contract review; TEST tokens have no real-world value. Use sample or public text only, never confidential agreements.</p>
+        <p className={styles.notice}>Groq supplies real AI review. Cumulative voucher updates stay off-chain until close; settlement transactions are real on Solana Devnet. TEST tokens have no real-world value. Use sample or public text only, never confidential agreements.</p>
 
         {state === "SETTLED" && (
           <p className={styles.settledMessage} role="status">

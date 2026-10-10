@@ -24,6 +24,7 @@ export interface ServiceDescription {
   readonly rateAtomicPerRequest: string;
   readonly gracePeriodSeconds: number;
   readonly groqConfigured: boolean;
+  readonly meterStoreConfigured: boolean;
 }
 
 /** A channel account as the server read it. Amounts are decimal strings. */
@@ -123,6 +124,8 @@ export function toChannelFacts(
 export interface SessionRead {
   readonly service: ServiceDescription;
   readonly channel: (SessionChannel & { statusName: string }) | null;
+  /** Provider-side durable cumulative voucher state; null if storage is not configured. */
+  readonly offchainUsage?: { readonly cumulative: string; readonly voucherSignature: string | null; readonly count: number } | null;
   /** True when the server looked and found nothing — a finished tab, not an error. */
   readonly closed?: boolean;
 }

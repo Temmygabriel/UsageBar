@@ -288,11 +288,11 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
           setService(session.service);
           setChannel(session.channel);
           setOpenTransaction(remembered.openTransaction);
-          const storedAmount = BigInt(remembered.usageAtomic ?? session.channel.settled);
           const onChainAmount = BigInt(session.channel.settled);
+          const storedAmount = BigInt(session.offchainUsage?.cumulative ?? session.channel.settled);
           const amount = storedAmount > onChainAmount ? storedAmount : onChainAmount;
-          const signature = remembered.voucherSignature ?? null;
-          const count = remembered.updateCount ?? 0;
+          const signature = session.offchainUsage?.voucherSignature ?? null;
+          const count = session.offchainUsage?.count ?? 0;
           setUsageAmount(amount);
           setVoucherSignature(signature);
           setTaskCount(count);
@@ -554,7 +554,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       const clientAmount = usageAmountRef.current;
       const used = clientAmount > onChainAmount ? clientAmount : onChainAmount;
       const signature = used > onChainAmount ? voucherSignatureRef.current : null;
-      const result = await closeSession(current.address, used.toString(), signature);
+      const result = await closeSession(current.address);
 
       // The numbers below are the ones the server measured by reading balances
       // before and after the distribution — what actually moved, not what the

@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
+import type { ExtractionResult } from "../../lib/client-api";
 
 import { formatAmount } from "../../lib/amounts";
 import {
@@ -11,7 +12,7 @@ import {
   describeMeter,
   explorerAddressUrl,
   explorerTransactionUrl,
-  lastConfirmedUpdate,
+  lastSignedUpdate,
   meterFraction,
 } from "../../lib/session";
 
@@ -46,7 +47,17 @@ export interface UsageTabProps {
   readonly facts: ChannelFacts | null;
   readonly settlementProof: SettlementProof | null;
   readonly updates: readonly UsageUpdate[];
-  readonly onOpen: () => void;
+  readonly rateAtomicPerRequest: string;
+  readonly groqConfigured: boolean;
+  readonly selectedCeiling: string;
+  readonly onCeilingChange: (value: string) => void;
+  readonly taskCount: number;
+  readonly lastExtraction: ExtractionResult | null;
+  readonly onOpen: (ceilingAtomic: string) => void;
+  readonly onStartService: () => void;
+  readonly onRunUsage: (documentText: string) => void;
+  readonly busyRequest: boolean;
+  readonly openDisabled?: boolean;
   readonly onClose: () => void;
   /**
    * The READY-state primary action's label.
@@ -91,12 +102,23 @@ export default function UsageTab({
   facts,
   settlementProof,
   updates,
+  rateAtomicPerRequest,
+  groqConfigured,
+  selectedCeiling,
+  onCeilingChange,
+  taskCount,
+  lastExtraction,
   onOpen,
+  onStartService,
+  onRunUsage,
+  busyRequest,
+  openDisabled = false,
   onClose,
   openLabel = "Open tab",
   blockedReason = null,
 }: UsageTabProps) {
   const chip = statusChip(state);
+  const [documentText, setDocumentText] = useState("SERVICE AGREEMENT\n\nThis Agreement is entered into on 15 October 2026 between Northstar Studio (the Client) and A. Okafor (the Consultant). The Consultant will deliver a website redesign and source files by 30 November 2026. The Client will pay NGN 850,000: 40% on commencement and 60% after acceptance. Either party may terminate this Agreement with 14 days written notice. The Consultant must keep business information confidential for two years. The Client owns the final deliverables after full payment, but third-party assets remain under their original licences. Late delivery may extend the deadline only where both parties agree in writing. The agreement does not state a dispute-resolution process, a limitation of liability, or what happens if acceptance feedback is delayed.");
   const onChain = provenance === "ON_CHAIN";
 
   const remaining = ceiling > settled ? ceiling - settled : 0n;
@@ -104,8 +126,7 @@ export default function UsageTab({
   const health = describeMeter(settled, ceiling);
   const fraction = meterFraction(settled, ceiling);
 
-  const confirmed = lastConfirmedUpdate(updates);
-  const pendingCount = updates.filter((update) => update.signature === null).length;
+  const latestVoucher = lastSignedUpdate(updates);
 
   const meterFillClass = [
     styles.meterFill,
@@ -138,9 +159,8 @@ export default function UsageTab({
 
       <div className={styles.service}>
         <svg className={styles.cameraIcon} viewBox="0 0 48 48" aria-hidden="true">
-          <path d="M15 12 18 7h12l3 5h3a3 3 0 0 1 3 3v19a3 3 0 0 1-3 3H12a3 3 0 0 1-3-3V15a3 3 0 0 1 3-3h3Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-          <circle cx="24" cy="24" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
-          <circle cx="35" cy="17" r="1.5" fill="currentColor" />
+          <path d="M13 6h16l8 8v28H13z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+          <path d="M29 6v9h8M19 23h12M19 29h12M19 35h8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
         <div className={styles.serviceCopy}>
           <span className="eyebrow">DEMO SERVICE</span>
@@ -157,6 +177,22 @@ export default function UsageTab({
           </p>
         </div>
       </div>
+
+      {state === "READY" && (
+        <section className={styles.capPicker} aria-label="Authorize a spending maximum">
+          <label className={styles.capLabel} htmlFor="usagebar-cap">AUTHORIZE A MAXIMUM</label>
+          <div className={styles.capSelectRow}>
+            <select id="usagebar-cap" className={styles.capSelect} value={selectedCeiling} onChange={(event) => onCeilingChange(event.target.value)}>
+              <option value="5">5.00 TEST maximum</option>
+              <option value="10">10.00 TEST maximum</option>
+              <option value="25">25.00 TEST maximum</option>
+              <option value="50">50.00 TEST maximum</option>
+            </select>
+            <span className={styles.capExplain}>Held in escrow · not charged in full</span>
+          </div>
+          <p className={styles.capHint}>Choose the most you are willing to spend. Only successful AI reviews increase the final bill.</p>
+        </section>
+      )}
 
       <div className={styles.amounts}>
         <div className={styles.row}>
@@ -201,7 +237,7 @@ export default function UsageTab({
         </div>
 
         <div className={styles.meterScale}>
-          <span>{Math.round(fraction * 100)}% used · {confirmed !== null ? `${updates.filter((update) => update.signature !== null).length} signed updates` : "no usage recorded"}</span>
+          <span>{Math.round(fraction * 100)}% of cap used · {taskCount} completed {taskCount === 1 ? "review" : "reviews"}</span>
           <span>{formatAmount(settled, decimals)} / {formatAmount(ceiling, decimals)} {unitLabel}</span>
         </div>
 
@@ -215,10 +251,55 @@ export default function UsageTab({
 
 
 
+
+      <section className={styles.serviceControls} aria-label="Contract review service">
+        {state === "FUNDED" && (
+          <div className={styles.serviceReady}>
+            <span className={styles.controlEyebrow}>READY TO USE</span>
+            <h3>Your spending cap is funded.</h3>
+            <p>Nothing has been billed yet. Start the service, then review sample contract text below. Each successful review costs {formatAmount(BigInt(rateAtomicPerRequest), decimals)} {unitLabel}.</p>
+            <button type="button" className="button button-block" onClick={onStartService} disabled={busyRequest || !groqConfigured}>Start contract review</button>
+          </div>
+        )}
+        {state === "ACTIVE" && (
+          <div className={styles.reviewForm}>
+            <div className={styles.reviewFormHead}>
+              <div><span className={styles.controlEyebrow}>METERED SERVICE</span><h3>Review a contract</h3></div>
+              <span className={styles.unitPrice}>{formatAmount(BigInt(rateAtomicPerRequest), decimals)} {unitLabel} / review</span>
+            </div>
+            <label className={styles.capLabel} htmlFor="contract-input">SAMPLE CONTRACT TEXT</label>
+            <textarea id="contract-input" className={styles.documentInput} value={documentText} onChange={(event) => setDocumentText(event.target.value)} maxLength={12000} rows={8} placeholder="Paste sample contract text. Do not paste confidential documents." />
+            <div className={styles.reviewFooter}>
+              <span>{documentText.trim().length.toLocaleString()} / 12,000 characters</span>
+              <button type="button" className="button" onClick={() => onRunUsage(documentText)} disabled={!groqConfigured || busyRequest || documentText.trim().length < 80 || settled + BigInt(rateAtomicPerRequest) > ceiling}>
+                {busyRequest ? "Reviewing…" : "Run AI review · " + formatAmount(BigInt(rateAtomicPerRequest), decimals) + " TEST"}
+              </button>
+            </div>
+            {!groqConfigured && <p className={styles.pending}>Groq API key is not available to this deployment. Add GROQ_API_KEY in Vercel and redeploy before opening a paid tab.</p>}
+            {settled + BigInt(rateAtomicPerRequest) > ceiling && <p className={styles.pending}>The next review would exceed the cap. Close and settle to return the unused balance.</p>}
+            <p className={styles.offchainNote}>Successful requests add a provider-signed voucher off-chain. No blockchain transaction is sent per review; the latest voucher is submitted when you close.</p>
+          </div>
+        )}
+        {lastExtraction !== null && state !== "SETTLED" && (
+          <article className={styles.reviewResult} aria-live="polite">
+            <header><span className={styles.controlEyebrow}>LATEST AI RESULT · REVIEW {taskCount}</span><span className={styles.resultType}>{lastExtraction.documentType}</span></header>
+            <p className={styles.resultSummary}>{lastExtraction.summary}</p>
+            {lastExtraction.risks.length > 0 && <div className={styles.resultGroup}><h4>Potential issues to check</h4><ul>{lastExtraction.risks.map((risk, i) => <li key={"risk-" + i}>{risk}</li>)}</ul></div>}
+            <div className={styles.resultColumns}>
+              <div className={styles.resultGroup}><h4>Parties and dates</h4><ul>{[...lastExtraction.parties, ...lastExtraction.dates].length ? [...lastExtraction.parties, ...lastExtraction.dates].map((x, i) => <li key={"fact-" + i}>{x}</li>) : <li>Not stated</li>}</ul></div>
+              <div className={styles.resultGroup}><h4>Payment terms</h4><ul>{lastExtraction.monetaryTerms.length ? lastExtraction.monetaryTerms.map((x, i) => <li key={"money-" + i}>{x}</li>) : <li>Not stated</li>}</ul></div>
+            </div>
+            {lastExtraction.clauses.length > 0 && <div className={styles.resultGroup}><h4>Key clauses</h4><ul>{lastExtraction.clauses.map((x, i) => <li key={"clause-" + i}>{x}</li>)}</ul></div>}
+            {lastExtraction.missingDetails.length > 0 && <div className={styles.resultGroup}><h4>Missing or unclear</h4><ul>{lastExtraction.missingDetails.map((x, i) => <li key={"missing-" + i}>{x}</li>)}</ul></div>}
+            <p className={styles.resultDisclaimer}>{lastExtraction.disclaimer} AI output can be wrong; verify against the source document.</p>
+          </article>
+        )}
+      </section>
+
       <footer className={styles.foot}>
         {canOpen && (
           <>
-            <button type="button" className="button button-block" onClick={onOpen}>
+            <button type="button" className="button button-block" onClick={() => onOpen((BigInt(selectedCeiling) * (10n ** BigInt(decimals))).toString())} disabled={openDisabled || busyRequest}>
               <span>{openLabel}</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
             </button>
             {blockedReason !== null && <p className={styles.pending}>{blockedReason}</p>}
@@ -226,7 +307,7 @@ export default function UsageTab({
         )}
 
         {canClose && (
-          <button type="button" className="button button-block" onClick={onClose}>
+          <button type="button" className="button button-block" onClick={onClose} disabled={busyRequest || busy}>
             <span>Close &amp; settle</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
           </button>
         )}
@@ -237,11 +318,7 @@ export default function UsageTab({
           </button>
         )}
 
-        <p className={styles.notice}>
-          {onChain
-            ? "Demo only: the camera timer is simulated. Payment-channel transactions are real on Solana Devnet, but TEST tokens have no real-world value."
-            : "Demo only: the camera timer is simulated, not connected to a real camera. The 50 TEST cap is a demo limit, not a charge; no deposit is made until you approve. TEST has no real-world value."}
-        </p>
+        <p className={styles.notice}>Payment-channel transactions are real on Solana Devnet. Groq supplies the contract review; TEST tokens have no real-world value. Use sample or public text only, never confidential agreements.</p>
 
         {state === "SETTLED" && (
           <p className={styles.settledMessage} role="status">
@@ -320,15 +397,10 @@ export default function UsageTab({
               {abbreviate(facts.openTransaction, 12, 6)}
             </a>
           </div>
-          {confirmed !== null && confirmed.signature !== null && (
+          {latestVoucher !== null && (
             <div className={styles.proofRow}>
-              <span className={styles.proofLabel}>Last usage update</span>
-              <a className={styles.proofValue}
-                href={explorerTransactionUrl(confirmed.signature)}
-                target="_blank" rel="noopener noreferrer"
-                title={confirmed.signature}>
-                {abbreviate(confirmed.signature, 9, 6)}
-              </a>
+              <span className={styles.proofLabel}>Latest off-chain voucher</span>
+              <span className={styles.proofValue} title={latestVoucher.voucherSignature}>{abbreviate(latestVoucher.voucherSignature, 9, 6)}</span>
             </div>
           )}
           {settlementProof !== null && (

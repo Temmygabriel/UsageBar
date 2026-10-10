@@ -91,6 +91,12 @@ try {
         const node = document.querySelector('article[aria-label="Usage tab"]');
         return Boolean(node && node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0);
       })(),
+      primaryActionBounds: (() => {
+        const node = document.querySelector('article[aria-label="Usage tab"] button');
+        if (!node) return null;
+        const rect = node.getBoundingClientRect();
+        return { top: Math.round(rect.top), bottom: Math.round(rect.bottom), height: Math.round(rect.height), viewportHeight: window.innerHeight };
+      })(),
       primaryActionVisibleInFirstViewport: (() => {
         const node = document.querySelector('article[aria-label="Usage tab"] button');
         if (!node) return false;

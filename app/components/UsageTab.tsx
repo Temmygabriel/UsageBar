@@ -157,7 +157,7 @@ export default function UsageTab({
 
       <div className={styles.amounts}>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>Authorized (max)</span>
+          <span className={styles.rowLabel}>{onChain ? "Authorized (max)" : "Maximum (proposed)"}</span>
           <span className={[amountClass, styles.rowValueCeiling].join(" ")}>
             {formatAmount(ceiling, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
@@ -165,7 +165,7 @@ export default function UsageTab({
         </div>
 
         <div className={styles.row}>
-          <span className={styles.rowLabel}>Used (so far)</span>
+          <span className={styles.rowLabel}>{state === "SETTLED" ? "Settled (used)" : "Used (so far)"}</span>
           <span className={amountClass}>
             {formatAmount(settled, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
@@ -173,7 +173,7 @@ export default function UsageTab({
         </div>
 
         <div className={styles.row}>
-          <span className={styles.rowLabel}>Remaining</span>
+          <span className={styles.rowLabel}>{state === "SETTLED" ? "Returned (unused)" : onChain ? "Remaining" : "Not committed"}</span>
           <span className={amountClass}>
             {formatAmount(remaining, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
@@ -210,34 +210,51 @@ export default function UsageTab({
         )}
       </div>
 
-      {onChain && facts !== null && (
-        <div className={styles.proof}>
-          <div className={styles.proofRow}>
-            <span className={styles.proofLabel}>Channel</span>
-            <a
-              className={styles.proofValue}
-              href={explorerAddressUrl(facts.address)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {abbreviate(facts.address)}
-            </a>
-          </div>
-          <div className={styles.proofRow}>
-            <span className={styles.proofLabel}>Opened by</span>
-            <a
-              className={styles.proofValue}
-              href={explorerTransactionUrl(facts.openTransaction)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {abbreviate(facts.openTransaction, 12, 6)}
-            </a>
-          </div>
-        </div>
-      )}
 
-      <section className={styles.settlement} aria-label="Final settlement">
+
+      <footer className={styles.foot}>
+        {canOpen && (
+          <>
+            <button type="button" className="button button-block" onClick={onOpen}>
+              <span>{openLabel}</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
+            </button>
+            {blockedReason !== null && <p className={styles.pending}>{blockedReason}</p>}
+          </>
+        )}
+
+        {canClose && (
+          <button type="button" className="button button-block" onClick={onClose}>
+            <span>Close &amp; settle</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
+          </button>
+        )}
+
+        {busy && (
+          <button type="button" className="button button-block" disabled>
+            {state === "OPENING" ? "Opening…" : "Settling…"}
+          </button>
+        )}
+
+        <p className={styles.notice}>
+          {onChain
+            ? "Camera usage is simulated. Payment-channel transactions are real on Solana Devnet; TEST tokens have no real-world value."
+            : "Camera usage is simulated. No deposit is made until you approve the opening transaction. TEST tokens have no real-world value."}
+        </p>
+
+        {state === "SETTLED" && (
+          <p className={styles.settledMessage} role="status">
+            <span className="chip-dot" /> Settled on chain — nothing further is owed.
+          </p>
+        )}
+
+        <div className={styles.networkNote}>
+          <span className={styles.networkDot} aria-hidden="true" />
+          <span>SOLANA DEVNET · TEST FUNDS ONLY</span>
+        </div>
+      </footer>
+    </article>
+
+      {state === "SETTLED" && facts !== null && (
+        <section className={styles.settlement} aria-label="Final settlement">
         <header className={styles.settlementHead}>
           <h3 className={styles.settlementTitle}>Final settlement</h3>
           <span className={state === "SETTLED" && facts !== null ? styles.settlementDone : styles.settlementPending}>
@@ -273,49 +290,35 @@ export default function UsageTab({
             ? "Only the amount you used was charged. The rest was returned."
             : "Settlement amounts appear here after the close is verified on-chain."}
         </p>
-      </section>
+        </section>
+      )}
 
-      <footer className={styles.foot}>
-        {canOpen && (
-          <>
-            <button type="button" className="button button-block" onClick={onOpen}>
-              <span>{openLabel}</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
-            </button>
-            {blockedReason !== null && <p className={styles.pending}>{blockedReason}</p>}
-          </>
-        )}
-
-        {canClose && (
-          <button type="button" className="button button-block" onClick={onClose}>
-            <span>Close &amp; settle</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
-          </button>
-        )}
-
-        {busy && (
-          <button type="button" className="button button-block" disabled>
-            {state === "OPENING" ? "Opening…" : "Settling…"}
-          </button>
-        )}
-
-        {!onChain && (
-          <p className={styles.notice}>
-            No deposit is made until you approve the opening transaction. Camera usage is simulated;
-            the payment channel is real on Solana Devnet. TEST tokens have no real-world value.
-          </p>
-        )}
-
-        {state === "SETTLED" && (
-          <p className={styles.settledMessage} role="status">
-            <span className="chip-dot" /> Settled on chain — nothing further is owed.
-          </p>
-        )}
-
-        <div className={styles.networkNote}>
-          <span className={styles.networkDot} aria-hidden="true" />
-          <span>SOLANA DEVNET · TEST FUNDS ONLY</span>
+      {onChain && facts !== null && (
+        <div className={styles.proof}>
+          <div className={styles.proofRow}>
+            <span className={styles.proofLabel}>Channel</span>
+            <a
+              className={styles.proofValue}
+              href={explorerAddressUrl(facts.address)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {abbreviate(facts.address)}
+            </a>
+          </div>
+          <div className={styles.proofRow}>
+            <span className={styles.proofLabel}>Opened by</span>
+            <a
+              className={styles.proofValue}
+              href={explorerTransactionUrl(facts.openTransaction)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {abbreviate(facts.openTransaction, 12, 6)}
+            </a>
+          </div>
         </div>
-      </footer>
-    </article>
+      )}
     </div>
   );
 }

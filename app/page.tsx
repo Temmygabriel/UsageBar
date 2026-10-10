@@ -44,19 +44,19 @@ const CLUSTER = process.env.NEXT_PUBLIC_SOLANA_CLUSTER ?? "devnet";
  */
 const EVIDENCE = [
   {
-    claim: "A channel was opened and the deposit moved into escrow",
+    claim: "Channel opened and deposit escrowed",
     signature: "2Uoz4SE93ct5v3RrXQnzFhy8Dn4bwi8FBcf817Vm3SjNm1Umi2q9jzxLF95SdEsCC8r2KsKHDYKSo8JaNuDLgoh",
   },
   {
-    claim: "The settled watermark advanced on a cumulative voucher",
+    claim: "Cumulative signed usage accepted",
     signature: "3wesVbuGwEA9ETkAUUG1L1We6GSCVhb2ojimHRv7Bh468ryDJrTtLtHVQnRmYc62E7KJyKSwnSwsJCoKnyNn4uNG",
   },
   {
-    claim: "The channel was sealed at its final metered amount",
+    claim: "Channel sealed at the final metered amount",
     signature: "3WjdkDYv9UCazfz9EQYz7mPTnkdbU2vFVpseCyFRAYqnKJUcTfgHYUizvhayKKpPL5MR3qqGLp32xrhxESHJfZ8p",
   },
   {
-    claim: "The provider was paid, the customer refunded, escrow emptied",
+    claim: "Provider paid and unused balance returned",
     signature: "51FcroWv457JrF9aARRxGqzUp8j8Azohtr1KD6q76bxeRjNDVzFPM4YsoSa2fESnHMDPyw4dULvt746stNdaX81A",
   },
 ] as const;
@@ -131,6 +131,8 @@ export default function Page() {
 
   return (
     <div className={styles.shell} id="top">
+      <a className={styles.skipLink} href="#main-content">Skip to the UsageBar demo</a>
+
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <a className={styles.wordmark} href="#top" aria-label="UsageBar home">UsageBar</a>
@@ -138,7 +140,7 @@ export default function Page() {
           <nav className={styles.nav} aria-label="Primary">
             <a href="#how">How it works</a>
             <a href="#use-cases">Use cases</a>
-            <a href="#developers">Developers</a>
+            <a href="#evidence">Proof</a>
             <a href="#about">About</a>
           </nav>
 
@@ -174,9 +176,8 @@ export default function Page() {
         </div>
       </header>
 
-      <main className={styles.main}>
-        <div className={styles.leftColumn}>
-          <section className={styles.proposition} aria-labelledby="hero-title">
+      <main className={styles.main} id="main-content">
+        <section className={styles.proposition} aria-labelledby="hero-title">
             <div className={styles.kicker}>
               <span>THE OPEN TAB</span>
               <span className={styles.kickerRule} aria-hidden="true" />
@@ -187,7 +188,7 @@ export default function Page() {
               <span>you actually use.</span>
             </h1>
 
-            <p className={styles.lede} id="about">
+            <p className={styles.lede}>
               <span>Open one payment tab.</span>
               <span>Let usage build the bill.</span>
               <span>Settle once at the end.</span>
@@ -225,6 +226,31 @@ export default function Page() {
             </ol>
           </section>
 
+        <div className={styles.tabColumn}>
+          {notice !== null && (
+            <p className={bannerClass(notice.tone)} role="status">
+              {notice.text}
+            </p>
+          )}
+
+          <UsageTab
+            state={state.state}
+            serviceName="Camera rental"
+            serviceMeta={service ? `Usage-based billing · ${ratePerSecond(service.rateAtomicPerSecond, decimals)} TEST per second` : "Usage-based billing · billed by the second"}
+            unitLabel={unit}
+            ceiling={ceiling}
+            settled={settled}
+            decimals={decimals}
+            provenance={hasChannel ? "ON_CHAIN" : "PROPOSED"}
+            facts={facts}
+            updates={updates}
+            onOpen={onPrimary}
+            onClose={actions.close}
+            openLabel={openLabel}
+            blockedReason={blockedReason}
+          />
+        </div>
+
           <section className={styles.useCases} id="use-cases" aria-labelledby="use-cases-title">
             <h2 className={styles.useCasesTitle} id="use-cases-title">Perfect for real services</h2>
             <div className={styles.useCaseGrid}>
@@ -253,32 +279,6 @@ export default function Page() {
               </article>
             </div>
           </section>
-        </div>
-
-        <div className={styles.tabColumn}>
-          {notice !== null && (
-            <p className={bannerClass(notice.tone)} role="status">
-              {notice.text}
-            </p>
-          )}
-
-          <UsageTab
-            state={state.state}
-            serviceName="Camera rental"
-            serviceMeta={service ? `Usage-based billing · ${ratePerSecond(service.rateAtomicPerSecond, decimals)} TEST per second` : "Usage-based billing · billed by the second"}
-            unitLabel={unit}
-            ceiling={ceiling}
-            settled={settled}
-            decimals={decimals}
-            provenance={hasChannel ? "ON_CHAIN" : "PROPOSED"}
-            facts={facts}
-            updates={updates}
-            onOpen={onPrimary}
-            onClose={actions.close}
-            openLabel={openLabel}
-            blockedReason={blockedReason}
-          />
-        </div>
       </main>
 
       <section className={styles.howSection} id="how" aria-labelledby="how-title">
@@ -305,36 +305,53 @@ export default function Page() {
         </div>
       </section>
 
-      <footer className={styles.footer} id="developers">
+      <footer className={styles.footer} id="about">
         <div className={styles.footerInner}>
-          <h2 className={styles.footerTitle} id="evidence">Verified on Solana {CLUSTER}</h2>
-
-          <ul className={styles.evidence}>
-            {EVIDENCE.map((entry) => (
+          <div className={styles.footerHeader}>
+            <div className={styles.footerHeadingGroup}>
+              <p className={styles.footerEyebrow}>PROTOCOL EVIDENCE · SOLANA DEVNET</p>
+              <h2 className={styles.footerTitle} id="evidence">Proof you can inspect.</h2>
+              <p className={styles.footerIntro}>
+                Four standalone transactions trace the core Payment Channels lifecycle. Each link opens
+                the original transaction in Solana Explorer.
+              </p>
+            </div>
+            <a className={styles.protocolLink}
+              href="https://github.com/solana-foundation/payment-channels"
+              target="_blank" rel="noopener noreferrer">
+              Payment Channels source <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+          <ul className={styles.evidence} aria-label="Independent protocol verification transactions">
+            {EVIDENCE.map((entry, index) => (
               <li className={styles.evidenceItem} key={entry.signature}>
-                <span className={styles.evidenceClaim}>{entry.claim}</span>
-                <a
-                  className={styles.evidenceProof}
-                  href={explorerTransactionUrl(entry.signature)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {entry.signature}
-                </a>
+                <span className={styles.evidenceIndex} aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                <div className={styles.evidenceCopy}>
+                  <span className={styles.evidenceClaim}>{entry.claim}</span>
+                  <a className={styles.evidenceProof}
+                    href={explorerTransactionUrl(entry.signature)}
+                    target="_blank" rel="noopener noreferrer"
+                    title={entry.signature}
+                    aria-label={`Open transaction ${entry.signature} on Solana Explorer`}>
+                    <span>{abbreviate(entry.signature, 9, 6)}</span>
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                </div>
               </li>
             ))}
           </ul>
-
-          <p className={styles.footerNote}>
-            Each signature above is a real transaction on Solana {CLUSTER}, produced by this
-            repository&rsquo;s own tooling against the live Payment Channels program, and each can
-            be checked on the explorer. Together they are the whole lifecycle: money into escrow,
-            the meter advanced by signed cumulative vouchers, then a close that paid the provider
-            and returned the unused remainder. Those four are from the standalone runs that proved
-            the protocol; a tab you open above produces its own. Everything runs on {CLUSTER} with
-            test funds, nothing here has been audited, and{" "}
-            <code>docs/CLAIM_STATUS.md</code> records exactly what is proven and what is not.
-          </p>
+          <div className={styles.footerBottom}>
+            <p className={styles.footerNote}>
+              These are standalone protocol-verification transactions, not transactions from the tab above;
+              a live session has its own proof. Camera usage is simulated. Payment-channel transactions are real
+              on Devnet, but TEST tokens have no real-world value and this hackathon prototype has not been audited.
+            </p>
+            <nav className={styles.footerLinks} aria-label="Project details">
+              <a href="https://github.com/Temmygabriel/UsageBar/blob/main/docs/CLAIM_STATUS.md" target="_blank" rel="noopener noreferrer">Claim status ↗</a>
+              <a href="https://github.com/Temmygabriel/UsageBar/blob/main/docs/LIMITATIONS.md" target="_blank" rel="noopener noreferrer">Limitations ↗</a>
+              <a href="https://github.com/Temmygabriel/UsageBar" target="_blank" rel="noopener noreferrer">Source code ↗</a>
+            </nav>
+          </div>
         </div>
       </footer>
     </div>

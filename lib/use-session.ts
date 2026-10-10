@@ -28,10 +28,11 @@ import {
   ApiError,
   buildOpenTransaction,
   closeSession,
-  commitUsage,
+  runMeteredExtraction,
   readSession,
   readWalletBalances,
   requestFaucet,
+  type ExtractionResult,
   type ServiceDescription,
   type SessionChannel,
 } from "./client-api";
@@ -45,18 +46,6 @@ import {
   type ConnectedWallet,
   type WalletId,
 } from "./wallet";
-
-/**
- * How long each metering tick bills for, and how often it runs.
- *
- * A usage tab's entire advantage is that usage accrues continuously while the
- * chain is touched occasionally — vouchers are cumulative, so one transaction
- * covers all the usage since the last one. Tick interval and billed interval
- * are equal here for legibility: the meter advances by exactly the five seconds
- * that elapsed, which is easy to check against a stopwatch during a demo.
- */
-const TICK_SECONDS = 5;
-const TICK_INTERVAL_MS = 5_000;
 
 export interface Notice {
   readonly tone: "info" | "warn" | "error" | "success";
@@ -84,6 +73,10 @@ export interface SessionState {
    * Used to offer the faucet before the chain has to refuse a deposit.
    */
   readonly balances: { readonly solLamports: bigint; readonly tokens: bigint | null } | null;
+  readonly usageAmount: bigint;
+  readonly voucherSignature: string | null;
+  readonly taskCount: number;
+  readonly lastExtraction: ExtractionResult | null;
 }
 
 export interface SessionActions {
@@ -91,7 +84,9 @@ export interface SessionActions {
   cancelConnect(): void;
   disconnect(): Promise<void>;
   fund(): Promise<void>;
-  open(): Promise<void>;
+  open(ceilingAtomic: string): Promise<void>;
+  startService(): void;
+  runUsage(documentText: string): Promise<void>;
   close(): Promise<void>;
   dismissNotice(): void;
 }
@@ -108,26 +103,37 @@ function storageKey(address: string): string {
  * accessor throw. A remembered channel is a convenience, and losing it must not
  * take the page down with it.
  */
-function remember(address: string, value: { channel: string; openTransaction: string }): void {
-  try {
-    window.localStorage.setItem(storageKey(address), JSON.stringify(value));
-  } catch {
-    // Not fatal: the tab still works, a refresh just will not resume it.
-  }
+interface RememberedChannel {
+  readonly channel: string;
+  readonly openTransaction: string;
+  readonly usageAtomic?: string;
+  readonly voucherSignature?: string | null;
+  readonly updateCount?: number;
+  readonly lastExtraction?: ExtractionResult | null;
+  readonly serviceStarted?: boolean;
 }
 
-function recall(address: string): { channel: string; openTransaction: string } | null {
+function remember(address: string, value: RememberedChannel): void {
+  try { window.localStorage.setItem(storageKey(address), JSON.stringify(value)); }
+  catch { /* Resume persistence is best-effort; the channel remains on chain. */ }
+}
+
+function recall(address: string): RememberedChannel | null {
   try {
     const raw = window.localStorage.getItem(storageKey(address));
     if (raw === null) return null;
-    const parsed = JSON.parse(raw) as { channel?: unknown; openTransaction?: unknown };
-    if (typeof parsed.channel !== "string" || typeof parsed.openTransaction !== "string") {
-      return null;
-    }
-    return { channel: parsed.channel, openTransaction: parsed.openTransaction };
-  } catch {
-    return null;
-  }
+    const parsed = JSON.parse(raw) as Partial<RememberedChannel>;
+    if (typeof parsed.channel !== "string" || typeof parsed.openTransaction !== "string") return null;
+    return {
+      channel: parsed.channel,
+      openTransaction: parsed.openTransaction,
+      usageAtomic: typeof parsed.usageAtomic === "string" && /^\\d+$/.test(parsed.usageAtomic) ? parsed.usageAtomic : "0",
+      voucherSignature: typeof parsed.voucherSignature === "string" ? parsed.voucherSignature : null,
+      updateCount: typeof parsed.updateCount === "number" && Number.isSafeInteger(parsed.updateCount) ? parsed.updateCount : 0,
+      lastExtraction: parsed.lastExtraction ?? null,
+      serviceStarted: parsed.serviceStarted === true,
+    };
+  } catch { return null; }
 }
 
 function forget(address: string): void {
@@ -149,6 +155,10 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
   const [openTransaction, setOpenTransaction] = useState<string | null>(null);
   const [settlementProof, setSettlementProof] = useState<SessionState["settlementProof"]>(null);
   const [updates, setUpdates] = useState<readonly UsageUpdate[]>([]);
+  const [usageAmount, setUsageAmount] = useState(0n);
+  const [voucherSignature, setVoucherSignature] = useState<string | null>(null);
+  const [taskCount, setTaskCount] = useState(0);
+  const [lastExtraction, setLastExtraction] = useState<ExtractionResult | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<ProductState>("READY");
@@ -158,8 +168,14 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
   const connectedRef = useRef<ConnectedWallet | null>(null);
   /** Invalidates a pending connection when the user cancels or changes wallets. */
   const connectAttemptRef = useRef(0);
-  /** Guards the metering loop against overlapping requests. */
-  const tickingRef = useRef(false);
+  /** Guards the AI request so a double click cannot issue two usage vouchers. */
+  const runningRef = useRef(false);
+  const channelRef = useRef<SessionChannel | null>(null);
+  channelRef.current = channel;
+  const usageAmountRef = useRef(0n);
+  usageAmountRef.current = usageAmount;
+  const voucherSignatureRef = useRef<string | null>(null);
+  voucherSignatureRef.current = voucherSignature;
 
   // -------------------------------------------------------------------------
   // Service description, read once on mount
@@ -274,11 +290,18 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
           setService(session.service);
           setChannel(session.channel);
           setOpenTransaction(remembered.openTransaction);
-          setPhase(session.channel.settled === "0" ? "FUNDED" : "ACTIVE");
-          setNotice({
-            tone: "info",
-            text: `Resumed the tab this wallet already had open at ${remembered.channel}.`,
-          });
+          const amount = BigInt(remembered.usageAtomic ?? session.channel.settled);
+          const signature = remembered.voucherSignature ?? null;
+          const count = remembered.updateCount ?? 0;
+          setUsageAmount(amount);
+          setVoucherSignature(signature);
+          setTaskCount(count);
+          setLastExtraction(remembered.lastExtraction ?? null);
+          setUpdates(signature !== null && amount > BigInt(session.channel.settled)
+            ? [{ sequence: Math.max(1, count), cumulative: amount, voucherSignature: signature }]
+            : []);
+          setPhase(remembered.serviceStarted || amount > 0n ? "ACTIVE" : "FUNDED");
+          setNotice({ tone: "info", text: `Resumed the open Devnet tab at ${remembered.channel}; the latest voucher was restored from this browser.` });
         } else {
           // It was distributed, or never existed. Either way there is nothing
           // to resume and no money stranded.
@@ -345,6 +368,10 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     setOpenTransaction(null);
     setSettlementProof(null);
     setUpdates([]);
+    setUsageAmount(0n);
+    setVoucherSignature(null);
+    setTaskCount(0);
+    setLastExtraction(null);
     setBalances(null);
     setPhase("READY");
   }, []);
@@ -382,9 +409,9 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
   // Open
   // -------------------------------------------------------------------------
 
-  const open = useCallback(async () => {
+  const open = useCallback(async (ceilingAtomic: string) => {
     const connected = connectedRef.current;
-    if (connected === null || service === null) return;
+    if (connected === null || service === null || !service.groqConfigured) return;
 
     setBusy(true);
     setNotice(null);
@@ -392,7 +419,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     setPhase("OPENING");
 
     try {
-      const built = await buildOpenTransaction(connected.address);
+      const built = await buildOpenTransaction(connected.address, ceilingAtomic);
 
       // The customer signs the deposit with their OWN key. This is the point of
       // the product: the money leaves their wallet under their signature, into
@@ -429,17 +456,17 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
         return;
       }
 
+      const initialAmount = BigInt(found.settled);
       setChannel(found);
       setOpenTransaction(signature);
       setUpdates([]);
-      setPhase(found.settled === "0" ? "FUNDED" : "ACTIVE");
-      remember(connected.address, { channel: built.channel, openTransaction: signature });
-      setNotice({
-        tone: "success",
-        text:
-          "The tab is open. Your deposit is in escrow and the meter is running — usage is metered " +
-          "off chain and committed to Solana as cumulative vouchers.",
-      });
+      setUsageAmount(initialAmount);
+      setVoucherSignature(null);
+      setTaskCount(0);
+      setLastExtraction(null);
+      setPhase(initialAmount > 0n ? "ACTIVE" : "FUNDED");
+      remember(connected.address, { channel: built.channel, openTransaction: signature, usageAtomic: initialAmount.toString(), voucherSignature: null, updateCount: 0, lastExtraction: null, serviceStarted: false });
+      setNotice({ tone: "success", text: `Your ${(BigInt(found.deposit) / (10n ** BigInt(service.decimals))).toString()} TEST cap is escrowed. It is the maximum, not the final charge. Start the AI review service when ready.` });
     } catch (error) {
       setPhase("READY");
       setNotice({
@@ -452,69 +479,59 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
   }, [service]);
 
   // -------------------------------------------------------------------------
-  // The meter
+  // Start service and meter successful AI requests off-chain
   // -------------------------------------------------------------------------
 
-  const channelRef = useRef<SessionChannel | null>(null);
-  channelRef.current = channel;
+  const startService = useCallback(() => {
+    const current = channelRef.current;
+    const connected = connectedRef.current;
+    if (current === null || phase !== "FUNDED") return;
+    setPhase("ACTIVE");
+    setNotice({ tone: "info", text: "AI contract review is ready. Each successful Groq review costs 1.00 TEST. Usage vouchers stay off-chain until you close the tab." });
+    if (connected !== null && openTransaction !== null) {
+      remember(connected.address, { channel: current.address, openTransaction, usageAtomic: usageAmountRef.current.toString(), voucherSignature: voucherSignatureRef.current, updateCount: taskCount, lastExtraction, serviceStarted: true });
+    }
+  }, [phase, openTransaction, taskCount, lastExtraction]);
 
-  useEffect(() => {
-    if (channel === null) return;
-    if (phase !== "FUNDED" && phase !== "ACTIVE") return;
-
-    const timer = setInterval(() => {
-      // Skip rather than queue: a tick that arrives while the previous one is
-      // still confirming would bill the same seconds twice.
-      if (tickingRef.current) return;
-      const current = channelRef.current;
-      if (current === null) return;
-      // Stop at the ceiling. The server would refuse anyway (a voucher above the
-      // deposit is rejected with error 235) and it already reports that, but
-      // there is no reason to spend a round trip per tick learning it again.
-      if (BigInt(current.settled) >= BigInt(current.deposit)) return;
-
-      tickingRef.current = true;
-      commitUsage(current.address, TICK_SECONDS)
-        .then((result) => {
-          if (!result.advanced) return;
-
-          // The number comes back from the server, which read it from chain
-          // after the transaction confirmed. It is never computed here.
-          setChannel((previous) =>
-            previous === null ? previous : { ...previous, settled: result.settled },
-          );
-          setUpdates((previous) => [
-            ...previous,
-            {
-              sequence: previous.length + 1,
-              cumulative: BigInt(result.settled),
-              signature: result.signature,
-            },
-          ]);
-          // The tab stays ACTIVE whether or not it has hit the ceiling: the
-          // difference is that at the ceiling the meter stops advancing, which
-          // the loop above enforces. Reaching the ceiling is not a new state —
-          // it is the same state with the meter full.
-          setPhase("ACTIVE");
-        })
-        .catch((error: unknown) => {
-          // A failed metering tick stops the loop and says why. Continuing to
-          // tick against a chain we cannot reach would keep showing a meter
-          // that is quietly going stale.
-          setNotice({
-            tone: "error",
-            text:
-              `The meter stopped: ${error instanceof Error ? error.message : String(error)} ` +
-              "The amount shown is the last value confirmed on chain.",
-          });
-        })
-        .finally(() => {
-          tickingRef.current = false;
-        });
-    }, TICK_INTERVAL_MS);
-
-    return () => clearInterval(timer);
-  }, [channel, phase]);
+  const runUsage = useCallback(async (documentText: string) => {
+    const current = channelRef.current;
+    const connected = connectedRef.current;
+    const currentService = service;
+    if (current === null || connected === null || phase !== "ACTIVE" || currentService === null || runningRef.current) return;
+    if (!currentService.groqConfigured) {
+      setNotice({ tone: "error", text: "Groq is not configured on this deployment. No usage was billed." });
+      return;
+    }
+    const previous = usageAmountRef.current;
+    const rate = BigInt(currentService.rateAtomicPerRequest);
+    if (previous + rate > BigInt(current.deposit)) {
+      setNotice({ tone: "warn", text: "This review would exceed your spending cap. Close and settle the tab to return the unused balance." });
+      return;
+    }
+    runningRef.current = true;
+    setBusy(true);
+    setNotice({ tone: "info", text: "Groq is reviewing the contract. No usage voucher is issued unless the AI returns a valid review." });
+    try {
+      const result = await runMeteredExtraction(current.address, previous.toString(), voucherSignatureRef.current, documentText);
+      if (!result.advanced || result.voucherSignature === null) throw new Error(result.reason ?? "The service did not issue a signed usage voucher.");
+      const next = BigInt(result.cumulative);
+      const count = taskCount + 1;
+      usageAmountRef.current = next;
+      voucherSignatureRef.current = result.voucherSignature;
+      setUsageAmount(next);
+      setVoucherSignature(result.voucherSignature);
+      setTaskCount(count);
+      setLastExtraction(result.extraction);
+      setUpdates((items) => [...items, { sequence: count, cumulative: next, voucherSignature: result.voucherSignature! }]);
+      if (openTransaction !== null) remember(connected.address, { channel: current.address, openTransaction, usageAtomic: next.toString(), voucherSignature: result.voucherSignature, updateCount: count, lastExtraction: result.extraction, serviceStarted: true });
+      setNotice({ tone: "success", text: `Review ${count} completed. Groq returned a result and the provider signed a cumulative voucher for ${next.toString()} atomic units. No Solana transaction was sent for this request.` });
+    } catch (error) {
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      runningRef.current = false;
+      setBusy(false);
+    }
+  }, [service, phase, taskCount, openTransaction]);
 
   // -------------------------------------------------------------------------
   // Close
@@ -529,12 +546,13 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     setPhase("FINALIZING");
     setNotice({
       tone: "info",
-      text: "Sealing the channel and paying out. This is two transactions: a cooperative seal, " +
-        "then the distribution.",
+      text: "Submitting the latest cumulative voucher with one cooperative seal, then distributing the used amount and refunding the rest.",
     });
 
     try {
-      const result = await closeSession(current.address);
+      const used = usageAmountRef.current;
+      const signature = used > BigInt(current.settled) ? voucherSignatureRef.current : null;
+      const result = await closeSession(current.address, used.toString(), signature);
 
       // The numbers below are the ones the server measured by reading balances
       // before and after the distribution — what actually moved, not what the
@@ -542,6 +560,8 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       setChannel((previous) =>
         previous === null ? previous : { ...previous, settled: result.settled, status: 3 },
       );
+      usageAmountRef.current = BigInt(result.settled);
+      setUsageAmount(BigInt(result.settled));
       setSettlementProof({
         sealSignature: result.sealSignature,
         distributeSignature: result.distributeSignature,
@@ -564,15 +584,12 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       // Back to ACTIVE, not to SETTLED. The channel is still open and still
       // holds the money; claiming otherwise would be the exact failure this
       // project is built to avoid.
-      setPhase("ACTIVE");
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : String(error),
-      });
+      setPhase(phase);
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [phase]);
 
   const dismissNotice = useCallback(() => setNotice(null), []);
 
@@ -580,7 +597,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
   // Derived display state
   // -------------------------------------------------------------------------
 
-  const settled = channel === null ? 0n : BigInt(channel.settled);
+  const settled = usageAmount;
   const deposit = channel === null ? 0n : BigInt(channel.deposit);
   const atCeiling = deposit > 0n && settled >= deposit;
 
@@ -609,7 +626,11 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       busy,
       atCeiling,
       balances,
+      usageAmount,
+      voucherSignature,
+      taskCount,
+      lastExtraction,
     },
-    actions: { connect, cancelConnect, disconnect, fund, open, close, dismissNotice },
+    actions: { connect, cancelConnect, disconnect, fund, open, startService, runUsage, close, dismissNotice },
   };
 }

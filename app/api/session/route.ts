@@ -28,7 +28,7 @@ import {
   withConfig,
 } from "../../../lib/server/http";
 import { PAYMENT_CHANNELS_PROGRAM } from "../../../tools/lib/protocol.mjs";
-import { extractContractTerms, isGeminiConfigured } from "../../../lib/metered-service";
+import { extractContractTerms, isGroqConfigured } from "../../../lib/metered-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ function describeService(config: ServerConfig) {
     treasuryOwner: config.treasuryOwner,
     ceilingAtomic: config.ceilingAtomic.toString(),
     rateAtomicPerRequest: config.rateAtomicPerRequest.toString(),
-    aiConfigured: isGeminiConfigured(),
+    groqConfigured: isGroqConfigured(),
     gracePeriodSeconds: config.gracePeriodSeconds,
   };
 }

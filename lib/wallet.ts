@@ -213,7 +213,7 @@ export async function connectWallet(
 
   return {
     address: publicKey.toString(),
-    walletName: provider.isPhantom === true ? "Phantom" : "Wallet",
+    walletName,
     provider,
   };
 }

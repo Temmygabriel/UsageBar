@@ -189,6 +189,9 @@
 @media (max-width: 959px) {
   .main { gap: 16px; }
   .banner { padding: 8px 10px; font-size: 0.68rem; line-height: 1.35; }
+  /* Keep the primary tab action in the first screen; the full warning remains directly below it. */
+  .tabColumn .banner { order: 2; }
+  .tabColumn > :global(div) { order: 1; }
 }
 @media (min-width: 700px) and (max-width: 959px) {
   .head, .service { padding-inline: 18px; }

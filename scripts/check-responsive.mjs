@@ -130,13 +130,32 @@ try {
       const connectingStatus = walletPage.locator("header [role='status']");
       await connectingStatus.waitFor({ state: "visible", timeout: 3000 });
       const observedConnectingLabel = (await connectingStatus.innerText()).replace(/\s+/g, " ").trim();
+      const accessibleConnectingLabel = (await connectingStatus.getAttribute("aria-label") ?? "").trim();
       await walletPage.screenshot({
         path: `${outputDir}/wallet-connecting-state.png`,
         animations: "disabled",
       });
-      if (!observedConnectingLabel.toLowerCase().includes("connecting to phantom")) {
+      if (
+        !observedConnectingLabel.toLowerCase().includes("connecting") ||
+        !accessibleConnectingLabel.toLowerCase().includes("connecting to phantom")
+      ) {
         throw new Error(
-          `Header did not identify the selected wallet while connecting. Observed: "${observedConnectingLabel}"`,
+          `Header did not identify the selected wallet while connecting. Visible: "${observedConnectingLabel}"; aria-label: "${accessibleConnectingLabel}"`,
+        );
+      }
+
+      // The compact mobile header must not let its status chip overlap the
+      // UsageBar wordmark or the Cancel button.
+      const brandBox = await walletPage.locator('header a[aria-label="UsageBar home"]').boundingBox();
+      const statusBox = await connectingStatus.boundingBox();
+      const headerCancelBox = await walletPage.locator("header").getByRole("button", { name: "Cancel", exact: true }).boundingBox();
+      if (
+        brandBox === null || statusBox === null || headerCancelBox === null ||
+        statusBox.x < brandBox.x + brandBox.width - 1 ||
+        headerCancelBox.x < statusBox.x + statusBox.width - 1
+      ) {
+        throw new Error(
+          `Mobile connecting controls overlap. Brand=${JSON.stringify(brandBox)}; status=${JSON.stringify(statusBox)}; cancel=${JSON.stringify(headerCancelBox)}`,
         );
       }
 

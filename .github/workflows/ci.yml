@@ -1,11 +1,7 @@
 name: CI
 
-# Build spec Section 54.
-#
-# Runs on GitHub-hosted runners because the development machine has 8 GB RAM
-# (build spec Section 1.5). Standard runners are free with no minute cap on
-# public repositories, so all install/build/test work happens here and never
-# on the local machine.
+# Runs on GitHub-hosted runners because the development machine has 8 GB RAM.
+# Install/build/test/browser inspection work stays in CI, not on the local machine.
 
 on:
   push:
@@ -23,9 +19,9 @@ concurrency:
 
 jobs:
   verify:
-    name: typecheck, test, build
+    name: typecheck, test, build, responsive viewport inspection
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -51,3 +47,31 @@ jobs:
         env:
           # Public, non-secret. Never put a private key in a NEXT_PUBLIC_ variable.
           NEXT_PUBLIC_SOLANA_CLUSTER: devnet
+
+      - name: Install Playwright for viewport inspection (CI-only)
+        run: npm install --no-save --no-package-lock playwright@1.56.1
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start production server
+        run: |
+          npm run start > /tmp/usagebar-next.log 2>&1 &
+          echo $! > /tmp/usagebar-next.pid
+        env:
+          PORT: "3000"
+          NEXT_PUBLIC_SOLANA_CLUSTER: devnet
+
+      - name: Inspect rendered page at required viewport widths
+        run: node scripts/check-responsive.mjs
+        env:
+          USAGEBAR_BASE_URL: http://127.0.0.1:3000
+
+      - name: Upload viewport screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: usagebar-viewport-inspection
+          path: artifacts/viewport-inspection/
+          if-no-files-found: warn
+          retention-days: 14

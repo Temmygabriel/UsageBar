@@ -101,7 +101,7 @@ exercised on Devnet in
 | Chain | Solana Devnet (test funds only — no real economic value) |
 | Protocol | [Solana Payment Channels](https://github.com/solana-foundation/payment-channels), program `CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX` |
 | Client | Next.js 16, React 19, TypeScript, `@solana/kit` 8.4 |
-| Wallet | Phantom, via the browser provider — no Solana library is bundled into the client |
+| Wallet selection | Phantom, Solflare, and OKX Wallet; uses Wallet Standard where available and brand-specific injected-provider fallback |
 | Hosting | Vercel (serverless API routes hold the provider's key) |
 | CI | GitHub Actions — typecheck, 110 tests across 4 files, production build on every push |
 | Tooling | Six devnet scripts under [`../tools/`](../tools/), plus a chain verifier and a deployment probe |
@@ -133,11 +133,13 @@ reproducible command behind every row. In summary:
 Stated plainly, because a submission that lists only its successes is not
 evidence:
 
-- **No human has completed the wallet handshake in a browser.** The deployment
-  probe signs the `open` transaction itself. That stands in for a wallet's
-  cryptography — the format, the slot, the signature — and never for Phantom's
-  consent screen. This is the largest remaining gap and the one CI structurally
-  cannot cover.
+- **The wallet chooser and connection-cancellation state have automated
+  browser checks, but no human has completed the full wallet handshake yet.**
+  The deployment probe signs the `open` transaction itself. That stands in for
+  wallet cryptography — the format, the slot, the signature — and never for an
+  extension's real consent screen. Before submission, test connect, Devnet
+  signing, open, usage and close in a real browser with the selected wallet.
+  This is the largest remaining gap and the one CI structurally cannot cover.
 - **The application does not use the four extended paths.** They are proven
   against the program, driven directly by tooling. A judge cannot reach them by
   clicking anything. A proven instruction is not an integrated one.

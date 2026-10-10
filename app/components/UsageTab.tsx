@@ -160,7 +160,7 @@ export default function UsageTab({
 
       <div className={styles.amounts}>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>{onChain ? "Authorized (max)" : "Maximum (proposed)"}</span>
+          <span className={styles.rowLabel}>{onChain ? "Spending cap (authorized)" : "Spending cap (preview)"}</span>
           <span className={[amountClass, styles.rowValueCeiling].join(" ")}>
             {formatAmount(ceiling, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
@@ -239,8 +239,8 @@ export default function UsageTab({
 
         <p className={styles.notice}>
           {onChain
-            ? "Camera usage is simulated. Payment-channel transactions are real on Solana Devnet; TEST tokens have no real-world value."
-            : "Camera usage is simulated. No deposit is made until you approve the opening transaction. TEST tokens have no real-world value."}
+            ? "Demo only: the camera timer is simulated. Payment-channel transactions are real on Solana Devnet, but TEST tokens have no real-world value."
+            : "Demo only: the camera timer is simulated, not connected to a real camera. The 50 TEST cap is a demo limit, not a charge; no deposit is made until you approve. TEST has no real-world value."}
         </p>
 
         {state === "SETTLED" && (

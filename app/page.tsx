@@ -133,17 +133,13 @@ export default function Page() {
     <div className={styles.shell} id="top">
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <a className={styles.wordmark} href="#top" aria-label="UsageBar home">
-            <svg className={styles.brandMark} viewBox="0 0 36 36" aria-hidden="true">
-              <rect x="1" y="1" width="34" height="34" rx="5" fill="var(--accent)" />
-              <path d="M10 24V14M18 24V9M26 24V17M8 27H28" fill="none" stroke="var(--accent-ink)" strokeWidth="2.6" strokeLinecap="round" />
-            </svg>
-            <span>UsageBar</span>
-          </a>
+          <a className={styles.wordmark} href="#top" aria-label="UsageBar home">UsageBar</a>
 
           <nav className={styles.nav} aria-label="Primary">
             <a href="#how">How it works</a>
-            <a href="#evidence">Evidence</a>
+            <a href="#use-cases">Use cases</a>
+            <a href="#developers">Developers</a>
+            <a href="#about">About</a>
           </nav>
 
           <div className={styles.headerActions}>
@@ -179,34 +175,85 @@ export default function Page() {
       </header>
 
       <main className={styles.main}>
-        <section className={styles.proposition} aria-labelledby="hero-title">
-          <span className="eyebrow">Camera rental · pay per use</span>
+        <div className={styles.leftColumn}>
+          <section className={styles.proposition} aria-labelledby="hero-title">
+            <div className={styles.kicker}>
+              <span>THE OPEN TAB</span>
+              <span className={styles.kickerRule} aria-hidden="true" />
+            </div>
 
-          <h1 className="display" id="hero-title">Pay for what you actually use.</h1>
+            <h1 className="display" id="hero-title">
+              <span>Pay for what</span>
+              <span>you actually use.</span>
+            </h1>
 
-          <p className="lede">
-            Open one payment tab. Let usage build the bill. Settle once at the end — and get back
-            whatever you did not spend.
-          </p>
+            <p className={styles.lede} id="about">
+              <span>Open one payment tab.</span>
+              <span>Let usage build the bill.</span>
+              <span>Settle once at the end.</span>
+            </p>
 
-          <p className={styles.demoNote}>
-            <span className={styles.demoNoteMark} aria-hidden="true">i</span>
-            Camera usage is simulated in this demo. The payment-channel transactions are real on
-            Solana Devnet; TEST tokens have no real-world value.
-          </p>
+            <ol className={styles.steps} aria-label="How UsageBar works">
+              <li className={styles.step}>
+                <svg className={styles.stepIcon} viewBox="0 0 48 48" aria-hidden="true">
+                  <rect x="5" y="9" width="34" height="25" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <path d="M5 16H39" stroke="currentColor" strokeWidth="2" />
+                  <circle cx="37" cy="35" r="9" fill="var(--accent)" />
+                  <path d="M37 30V40M32 35H42" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <h2 className={styles.stepTitle}><span>1.</span> Open a tab</h2>
+                <p>Authorize a maximum amount up front.</p>
+              </li>
+              <li className={styles.step}>
+                <svg className={styles.stepIcon} viewBox="0 0 48 48" aria-hidden="true">
+                  <path d="M7 38H42" stroke="currentColor" strokeWidth="2" />
+                  <rect x="10" y="24" width="7" height="14" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <rect x="22" y="16" width="7" height="22" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <rect x="34" y="7" width="7" height="31" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
+                </svg>
+                <h2 className={styles.stepTitle}><span>2.</span> Use the service</h2>
+                <p>Usage is tracked with signed updates.</p>
+              </li>
+              <li className={styles.step}>
+                <svg className={styles.stepIcon} viewBox="0 0 48 48" aria-hidden="true">
+                  <path d="M12 7H36V39L31 35L24 40L17 35L12 39Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                  <path d="M18 16H30M18 22H30M18 28H27" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <h2 className={styles.stepTitle}><span>3.</span> Settle once</h2>
+                <p>Pay only for what you used. The rest comes back.</p>
+              </li>
+            </ol>
+          </section>
 
-          <ol className={styles.steps}>
-            <li>
-              <span className={styles.stepIndex}>01</span> Open tab
-            </li>
-            <li>
-              <span className={styles.stepIndex}>02</span> Use service
-            </li>
-            <li>
-              <span className={styles.stepIndex}>03</span> Close &amp; settle
-            </li>
-          </ol>
-        </section>
+          <section className={styles.useCases} id="use-cases" aria-labelledby="use-cases-title">
+            <h2 className={styles.useCasesTitle} id="use-cases-title">Perfect for real services</h2>
+            <div className={styles.useCaseGrid}>
+              <article className={styles.useCase}>
+                <svg className={styles.useCaseIcon} viewBox="0 0 40 40" aria-hidden="true">
+                  <rect x="4" y="11" width="32" height="23" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <circle cx="20" cy="22.5" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <path d="M11 11L14 6H23L26 11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                </svg>
+                <div><h3>Camera rental</h3><p>Pay for actual time used</p></div>
+              </article>
+              <article className={styles.useCase}>
+                <svg className={styles.useCaseIcon} viewBox="0 0 40 40" aria-hidden="true">
+                  <path d="M10 29C5 29 4 25 4 22C4 18 7 15 11 15C12 9 17 6 22 8C27 8 30 12 30 16C35 16 37 19 37 23C37 27 34 29 30 29Z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                </svg>
+                <div><h3>Compute</h3><p>Pay for actual usage</p></div>
+              </article>
+              <article className={styles.useCase}>
+                <svg className={styles.useCaseIcon} viewBox="0 0 40 40" aria-hidden="true">
+                  <circle cx="11" cy="10" r="3" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <path d="M11 13V35M24 5V25M24 31V35M34 5V15M34 21V35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx="24" cy="28" r="3" fill="var(--paper)" stroke="currentColor" strokeWidth="2" />
+                  <circle cx="34" cy="18" r="3" fill="var(--paper)" stroke="currentColor" strokeWidth="2" />
+                </svg>
+                <div><h3>Tools &amp; APIs</h3><p>Pay for actual calls</p></div>
+              </article>
+            </div>
+          </section>
+        </div>
 
         <div className={styles.tabColumn}>
           {notice !== null && (
@@ -217,8 +264,8 @@ export default function Page() {
 
           <UsageTab
             state={state.state}
-            serviceName="Camera Rental"
-            serviceMeta={serviceMeta}
+            serviceName="Camera rental"
+            serviceMeta={service ? `Usage-based billing · ${ratePerSecond(service.rateAtomicPerSecond, decimals)} TEST per second` : "Usage-based billing · billed by the second"}
             unitLabel={unit}
             ceiling={ceiling}
             settled={settled}
@@ -258,9 +305,9 @@ export default function Page() {
         </div>
       </section>
 
-      <footer className={styles.footer} id="evidence">
+      <footer className={styles.footer} id="developers">
         <div className={styles.footerInner}>
-          <h2 className={styles.footerTitle}>Verified on Solana {CLUSTER}</h2>
+          <h2 className={styles.footerTitle} id="evidence">Verified on Solana {CLUSTER}</h2>
 
           <ul className={styles.evidence}>
             {EVIDENCE.map((entry) => (

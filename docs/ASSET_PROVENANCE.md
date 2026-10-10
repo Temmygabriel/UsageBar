@@ -152,3 +152,12 @@ Until then the relevant `CLAIM_STATUS.md` row stays `UNVERIFIED`.
 | Fonts | Fraunces, IBM Plex Sans, IBM Plex Mono via `next/font` | Existing font setup retained |
 
 The illustration is a visual cue for the simulated camera-rental use case. It is not a claim that the demo has camera hardware integration or live camera telemetry. The interface explicitly says camera usage is simulated and distinguishes that from the real Solana Devnet payment-channel transactions.
+
+
+## Landing UI camera illustration
+
+- File: `public/camera-rental.jpg`
+- Source: tightly cropped and downscaled from the original generated UsageBar visual reference stored with project design assets.
+- Purpose: purely illustrative visual cue for the camera-rental demo; not a claim about a connected camera, inventory listing, or live camera telemetry.
+- Processing: 205 × 130 source crop, converted to optimized JPEG for the website.
+- Status: internally derived design asset; no third-party stock photo or remote request.

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { CSSProperties } from "react";
 
 import { formatAmount } from "../../lib/amounts";
@@ -124,47 +125,43 @@ export default function UsageTab({
   const canClose = state === "FUNDED" || state === "ACTIVE";
 
   return (
+    <div className={styles.tabStack}>
     <article className={styles.tab} aria-label="Usage tab">
       <header className={styles.head}>
         <span className={styles.tabLabel}>Usage Tab</span>
-        <span
-          className={["chip", chip.tone].filter(Boolean).join(" ")}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {chip.tone === "chip-verified" && <span className="chip-dot" />}
-          {chip.label}
+        <span className={styles.tabNumber}>
+          {facts !== null && onChain ? abbreviate(facts.address, 4, 4) : "PREVIEW"}
         </span>
       </header>
 
-      <div className={styles.perforation} role="presentation" />
-
       <div className={styles.service}>
+        <Image
+          className={styles.cameraImage}
+          src="/camera-rental.jpg"
+          alt="Illustrative camera for the simulated rental service"
+          width={205}
+          height={130}
+          priority
+        />
         <div className={styles.serviceCopy}>
-          <span className="eyebrow">Camera rental · demo service</span>
+          <span className="eyebrow">DEMO SERVICE</span>
           <h2 className={styles.serviceName}>{serviceName}</h2>
           <p className={styles.serviceMeta}>{serviceMeta}</p>
+          <p
+            className={styles.serviceState}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span className={[styles.stateDot, state === "SETTLED" ? styles.stateDotSuccess : ""].filter(Boolean).join(" ")} aria-hidden="true" />
+            {state === "READY" ? "No active tab yet" : chip.label}
+          </p>
         </div>
-        <svg className={styles.cameraIllustration} viewBox="0 0 144 92" aria-hidden="true">
-          <ellipse cx="73" cy="80" rx="51" ry="6" fill="#d8cebf" opacity="0.62" />
-          <path d="M35 28 43 16H69L78 28Z" fill="#bcb09c" />
-          <rect x="18" y="26" width="108" height="51" rx="7" fill="#252521" />
-          <rect x="23" y="30" width="98" height="42" rx="4" fill="#3b3932" />
-          <rect x="30" y="34" width="25" height="4" rx="2" fill="#8d867b" />
-          <circle cx="108" cy="36" r="2.5" fill="#c8491b" />
-          <circle cx="73" cy="51" r="24" fill="#181a17" stroke="#bca887" strokeWidth="3" />
-          <circle cx="73" cy="51" r="18" fill="#28302d" stroke="#6e776e" strokeWidth="1.5" />
-          <circle cx="73" cy="51" r="11" fill="#101512" stroke="#9a907c" strokeWidth="1.5" />
-          <circle cx="68" cy="46" r="4" fill="#d6d3c7" opacity="0.84" />
-          <path d="M29 64H43" stroke="#8d867b" strokeWidth="2" strokeLinecap="round" />
-          <path d="M102 63h10" stroke="#8d867b" strokeWidth="2" strokeLinecap="round" />
-        </svg>
       </div>
 
       <div className={styles.amounts}>
         <div className={styles.row}>
-          <span className={styles.rowLabel}>Authorized</span>
+          <span className={styles.rowLabel}>Authorized (max)</span>
           <span className={[amountClass, styles.rowValueCeiling].join(" ")}>
             {formatAmount(ceiling, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
@@ -172,7 +169,7 @@ export default function UsageTab({
         </div>
 
         <div className={styles.row}>
-          <span className={styles.rowLabel}>Used</span>
+          <span className={styles.rowLabel}>Used (so far)</span>
           <span className={amountClass}>
             {formatAmount(settled, decimals)}
             <span className={styles.unit}>{unitLabel}</span>
@@ -205,10 +202,8 @@ export default function UsageTab({
         </div>
 
         <div className={styles.meterScale}>
-          <span>{Math.round(fraction * 100)}% used</span>
-          <span>
-            {formatAmount(settled, decimals)} / {formatAmount(ceiling, decimals)}
-          </span>
+          <span>{Math.round(fraction * 100)}% used · {confirmed !== null ? `${updates.filter((update) => update.signature !== null).length} signed updates` : "no usage recorded"}</span>
+          <span>{formatAmount(settled, decimals)} / {formatAmount(ceiling, decimals)} {unitLabel}</span>
         </div>
 
         {health === "INCONSISTENT" && (
@@ -218,14 +213,6 @@ export default function UsageTab({
           </p>
         )}
       </div>
-
-      {!onChain && (
-        <p className={styles.notice}>
-          <strong>Nothing on chain yet.</strong> The ceiling above is the amount you are about to
-          authorize. It is not a deposit, and no channel exists until the opening transaction is
-          confirmed and read back from Solana.
-        </p>
-      )}
 
       {onChain && facts !== null && (
         <div className={styles.proof}>
@@ -254,60 +241,57 @@ export default function UsageTab({
         </div>
       )}
 
-      {state === "SETTLED" && facts !== null && (
-        <section className={styles.settlement} aria-label="Final settlement">
+      <section className={styles.settlement} aria-label="Final settlement">
+        <header className={styles.settlementHead}>
           <h3 className={styles.settlementTitle}>Final settlement</h3>
+          <span className={state === "SETTLED" && facts !== null ? styles.settlementDone : styles.settlementPending}>
+            {state === "SETTLED" && facts !== null ? "Completed" : "After close"}
+          </span>
+        </header>
 
-          <div className={styles.settlementRow}>
+        <div className={styles.settlementGrid}>
+          <div className={styles.settlementCell}>
             <span className={styles.settlementLabel}>Authorized</span>
-            <span className={styles.settlementValue}>
-              {formatAmount(facts.deposit, decimals)}
-            </span>
+            <strong className={styles.settlementValue}>
+              {state === "SETTLED" && facts !== null ? formatAmount(facts.deposit, decimals) : "—"}
+            </strong>
+            <span className={styles.settlementHint}>{state === "SETTLED" ? "Deposit verified" : "Final chain state"}</span>
           </div>
-          <div className={styles.settlementRow}>
-            <span className={styles.settlementLabel}>Used</span>
-            <span className={styles.settlementValue}>
-              {formatAmount(facts.settled, decimals)}
-            </span>
+          <div className={styles.settlementCell}>
+            <span className={styles.settlementLabel}>Settled (used)</span>
+            <strong className={styles.settlementValue}>
+              {state === "SETTLED" && facts !== null ? formatAmount(facts.settled, decimals) : "—"}
+            </strong>
+            <span className={styles.settlementHint}>{state === "SETTLED" ? "Provider amount" : "Confirmed at close"}</span>
           </div>
-          <div className={styles.settlementRow}>
-            <span className={styles.settlementLabel}>Returned</span>
-            <span className={styles.settlementValue}>
-              {formatAmount(unusedRemainder(facts), decimals)}
-            </span>
+          <div className={styles.settlementCell}>
+            <span className={styles.settlementLabel}>Returned (unused)</span>
+            <strong className={styles.settlementValue}>
+              {state === "SETTLED" && facts !== null ? formatAmount(unusedRemainder(facts), decimals) : "—"}
+            </strong>
+            <span className={styles.settlementHint}>{state === "SETTLED" ? "Refund verified" : "Verified refund"}</span>
           </div>
-        </section>
-      )}
+        </div>
+        <p className={styles.settlementNote}>
+          {state === "SETTLED" && facts !== null
+            ? "Only the amount you used was charged. The rest was returned."
+            : "Settlement amounts appear here after the close is verified on-chain."}
+        </p>
+      </section>
 
       <footer className={styles.foot}>
-        {confirmed !== null || pendingCount > 0 ? (
-          <p className={styles.updates}>
-            <span className={styles.updatesCount}>
-              {updates.filter((update) => update.signature !== null).length}
-            </span>
-            <span>signed usage update{updates.length === 1 ? "" : "s"}</span>
-            {pendingCount > 0 && <span className={styles.pending}>· {pendingCount} pending</span>}
-          </p>
-        ) : (
-          <p className={styles.updates}>
-            <span>No usage recorded</span>
-          </p>
-        )}
-
         {canOpen && (
           <>
             <button type="button" className="button button-block" onClick={onOpen}>
-              {openLabel}
+              <span>{openLabel}</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
             </button>
-            {blockedReason !== null && (
-              <p className={styles.pending}>{blockedReason}</p>
-            )}
+            {blockedReason !== null && <p className={styles.pending}>{blockedReason}</p>}
           </>
         )}
 
         {canClose && (
           <button type="button" className="button button-block" onClick={onClose}>
-            Close &amp; settle
+            <span>Close &amp; settle</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
           </button>
         )}
 
@@ -317,13 +301,25 @@ export default function UsageTab({
           </button>
         )}
 
-        {state === "SETTLED" && (
-          <p className={styles.updates} style={{ color: "var(--success)" }}>
-            <span className="chip-dot" />
-            <span>Settled on chain — nothing further is owed.</span>
+        {!onChain && (
+          <p className={styles.notice}>
+            No deposit is made until you approve the opening transaction. Camera usage is simulated;
+            the payment channel is real on Solana Devnet. TEST tokens have no real-world value.
           </p>
         )}
+
+        {state === "SETTLED" && (
+          <p className={styles.settledMessage} role="status">
+            <span className="chip-dot" /> Settled on chain — nothing further is owed.
+          </p>
+        )}
+
+        <div className={styles.networkNote}>
+          <span className={styles.networkDot} aria-hidden="true" />
+          <span>SOLANA DEVNET · TEST FUNDS ONLY</span>
+        </div>
       </footer>
     </article>
+    </div>
   );
 }

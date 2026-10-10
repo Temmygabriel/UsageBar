@@ -253,8 +253,7 @@ export async function connectWallet(
 
   if (typeof provider.connect !== "function") {
     throw new Error(
-      "This wallet does not expose a connection method this app recognises. Phantom is the " +
-        "one this demo is tested against.",
+      "This wallet does not expose a connection method recognised by UsageBar. Update the extension or choose another supported wallet.",
     );
   }
 

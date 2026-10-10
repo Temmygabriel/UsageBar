@@ -77,6 +77,9 @@ try {
       const connect = behavior === "hang"
         ? () => new Promise(() => {})
         : async () => {
+            // Keep the prompt pending briefly so the UI has a chance to render
+            // its Connecting state before this fake extension rejects it.
+            await new Promise((resolve) => setTimeout(resolve, 120));
             const error = new Error("User rejected the request");
             Object.defineProperty(error, "code", { value: 4001 });
             throw error;

@@ -113,11 +113,11 @@ describe("messageFromWireTransaction", () => {
    * encoder emit one signature slot, so the offset is checked against the
    * library that produced it rather than against our own arithmetic.
    */
-  async function wireTransaction() {
+  async function wireTransaction(version = 0) {
     const signer = await generateKeyPairSigner();
 
     const message = pipe(
-      createTransactionMessage({ version: 0 }),
+      createTransactionMessage({ version }),
       (m) => setTransactionMessageFeePayerSigner(signer, m),
       (m) =>
         setTransactionMessageLifetimeUsingBlockhash(
@@ -192,6 +192,18 @@ describe("messageFromWireTransaction", () => {
 
     expect(fromSlice.version).toBe(0);
     expect(fromSlice).toEqual(fromMessage);
+  });
+
+  it("slices a legacy message correctly for legacy injected wallet APIs", async () => {
+    const { wire, messageBytes, signatureCount } = await wireTransaction("legacy");
+    const decoder = getCompiledTransactionMessageDecoder();
+    const fromSlice = decoder.decode(messageFromWireTransaction(wire, signatureCount));
+
+    // The legacy Phantom-style request API accepts a base58-encoded legacy
+    // message, not a v0 message with a version prefix.
+    expect(wire[0]).toBe(signatureCount);
+    expect(fromSlice.version).toBe("legacy");
+    expect([...messageFromWireTransaction(wire, signatureCount)]).toEqual([...messageBytes]);
   });
 
   it("refuses a transaction too short to contain the signatures it claims", () => {

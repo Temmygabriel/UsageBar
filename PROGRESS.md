@@ -13,6 +13,12 @@
 > Entries below retain their original dated context. The current state and action
 > list are summarized at the top; do not follow old “deploy first” or “not started”
 > notes as instructions for the present build.
+>
+> **Deployment caveat (2026-10-11):** latest GitHub Actions passed, but Vercel
+> returned `Deployment rate limited — retry in 24 hours` for the new main commit.
+> The repeat-session and silent-reconnect changes are in GitHub, not yet verified
+> on the public production alias. Do not record a demo against the alias as if it
+> showed those latest changes.
 
 ---
 

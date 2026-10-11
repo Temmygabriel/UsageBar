@@ -12,14 +12,7 @@ INFERRED   — follows from proven facts, but not directly demonstrated
 UNVERIFIED — not tested. This is the default. It is not a soft "probably fine".
 ```
 
-Last updated: **2026-10-09** (six gates passed — a real channel was opened, its
-watermark advanced by real cumulative vouchers, it was sealed and paid out with
-every balance read back from raw chain state, the canonical run
-`canonical-usagebar-devnet-001` completed all twelve steps in one pass with its
-artifacts committed and independently re-verified, the **deployed application**
-was driven end to end over HTTPS against Devnet — which found and fixed a real
-bug in the close path — and the four protocol paths the canonical run never
-touched were each exercised directly on chain).
+Last updated: **2026-10-11** (the six protocol/deployment evidence gates below remain valid, including the canonical run and the 71-check deployed-app probe. Since the previous update, the Wallet Standard app-ready registration handshake was corrected and tested, a post-settlement **Authorize another tab** action was added, and the app now attempts safe silent reconnection to the previously selected wallet. GitHub Actions run [38101010531](https://github.com/Temmygabriel/UsageBar/actions/runs/38101010531) passed typecheck, automated tests, build, and responsive viewport checks. **Human browser-wallet behavior remains UNVERIFIED.** Vercel reports `Deployment rate limited — retry in 24 hours` for the latest main commit, so the latest repeated-session/reconnect UI patch is not confirmed live on the production alias as of this update.)
 
 ---
 

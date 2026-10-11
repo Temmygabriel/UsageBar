@@ -104,7 +104,7 @@ Consequences that must be honoured:
   sent to the browser, and is never committed (build spec Sections 18, 83);
 - the UI must state plainly that the operator can sign usage up to the ceiling.
 
-**Not yet implemented or tested.**
+**Historical audit status, now superseded.** The current implementation uses server-side operator signing for cumulative usage vouchers; chain and deployment evidence is recorded in [`CLAIM_STATUS.md`](CLAIM_STATUS.md). A human browser-wallet handshake is still unverified.
 
 ## Wallet model
 

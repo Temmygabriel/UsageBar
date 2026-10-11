@@ -1,11 +1,14 @@
 # UsageBar — Audit Report
 
 **Build spec Section 0A deliverable.**
-**Date:** 2026-10-05 · **Status:** report only — no application code executed.
+**Date:** 2026-10-05 · **Status:** historical initial-audit report; no application code executed at the time.
 
-This is the mandatory first task: read and audit the whole specification and
-report, before any implementation. It was produced by verifying protocols
-against live sources rather than from memory.
+This was the mandatory first task before implementation. It is now a historical
+snapshot, not a statement of the current build status. The application has since
+been implemented and deployed; use `USAGEBAR_BUILD_SPEC.md` and
+[`CLAIM_STATUS.md`](CLAIM_STATUS.md) for the current product and verified evidence.
+The original research below remains useful as a record of the protocol decisions
+and how the initial risk review was done.
 
 Companion documents:
 - [`PROTOCOL_DISCOVERY.md`](PROTOCOL_DISCOVERY.md) — the raw verified facts

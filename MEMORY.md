@@ -1,6 +1,6 @@
 # UsageBar — Working Memory
 
-**Last updated:** 2026-10-05
+**Last updated:** 2026-10-11
 
 > Durable facts, decisions and gotchas, so that work can resume without
 > re-deriving them. For *what is proven*, see
@@ -23,8 +23,10 @@ truth.** Never present a financial value as real until it has been read back
 from chain. No simulated transactions, no invented program IDs, no `SETTLED`
 state before an on-chain readback.
 
-Note: spec Section 108 ("you may now begin implementation") contradicts Section
-0B. **0A and 0B govern.**
+Historical note: Sections 0A/0B were the initial audit-first gate; that gate is
+complete. Current implementation status is in the top of `USAGEBAR_BUILD_SPEC.md`
+and `PROGRESS.md`. The 11 October implementation amendment supersedes the
+original camera-rental/timer product narrative.
 
 ---
 

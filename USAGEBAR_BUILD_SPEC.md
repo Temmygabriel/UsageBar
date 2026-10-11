@@ -11,7 +11,7 @@
 **Primary engineering model:** real-first, evidence-first, phase-gated  
 **Current implementation status:** Built and deployed on Devnet; protocol evidence exists; human browser-wallet walkthrough and submission media remain critical.
 **Visual reference:** Visual Reference Image 2 is locked as the primary art-direction target (see Section 0C).
-**Audit-first mode:** DeepSeek/Claude Code must perform the Section 0A report before any implementation work.
+**Audit-first mode:** The initial Section 0A report is complete. Current work must verify the existing implementation and evidence before making changes; do not restart from zero.
 
 ---
 

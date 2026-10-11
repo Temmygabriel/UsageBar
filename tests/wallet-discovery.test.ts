@@ -13,7 +13,7 @@ describe("Wallet Standard discovery", () => {
     }
   });
 
-  it("waits for Solflare to register asynchronously instead of selecting the broken legacy request path", async () => {
+  it("passes the registration API in app-ready so wallets loaded before the page can register", async () => {
     const fakeWindow = new EventTarget();
     const wallet = {
       name: "Solflare",
@@ -32,19 +32,27 @@ describe("Wallet Standard discovery", () => {
       },
     };
 
-    fakeWindow.addEventListener("wallet-standard:app-ready", () => {
-      // Real extensions may answer app-ready after the dispatching stack has
-      // unwound. The resolver must not immediately choose window.solflare's
-      // legacy provider while this registration is still pending.
-      setTimeout(() => {
-        fakeWindow.dispatchEvent(
-          new CustomEvent("wallet-standard:register-wallet", {
-            detail: (api: { register: (...wallets: unknown[]) => unknown }) => {
-              api.register(wallet);
-            },
-          }),
-        );
-      }, 20);
+    // This represents a wallet extension that registered before the app loaded.
+    // It waits for app-ready and expects the required API in event.detail.
+    fakeWindow.addEventListener("wallet-standard:app-ready", (event) => {
+      const api = (event as CustomEvent<{
+        register: (...wallets: unknown[]) => unknown;
+      }>).detail;
+      if (api === undefined || typeof api.register !== "function") {
+        throw new Error("wallet-standard:app-ready was missing its required API detail");
+      }
+      api.register(wallet);
+    });
+
+    // If the standard feature isn't discovered, this broken legacy façade would
+    // be selected and reproduce the old "Expected String" fallback behavior.
+    Object.assign(fakeWindow, {
+      solflare: {
+        connect: async () => ({ publicKey: { toString: () => "LegacyFacade" } }),
+        request: async () => {
+          throw new Error("Expected String");
+        },
+      },
     });
 
     Object.defineProperty(globalThis, "window", {

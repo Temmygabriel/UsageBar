@@ -107,6 +107,7 @@ interface WalletStandardAppApi {
 
 let standardRegistryInitialized = false;
 const standardWallets: StandardWallet[] = [];
+let standardAppApi: WalletStandardAppApi | null = null;
 
 /**
  * Minimal Wallet Standard registration bridge. It follows the standard app-ready /
@@ -131,6 +132,7 @@ function getRegisteredStandardWallets(): readonly StandardWallet[] {
       };
     },
   });
+  standardAppApi = api;
 
   window.addEventListener("wallet-standard:register-wallet", (event: Event) => {
     // Wallet Standard wallets dispatch this event with a registration callback
@@ -142,7 +144,11 @@ function getRegisteredStandardWallets(): readonly StandardWallet[] {
   // The standard readiness signal is a plain Event. Wallets that registered
   // before the page loaded will dispatch their registration callback in
   // response, which the listener above hands our registry API.
-  window.dispatchEvent(new Event("wallet-standard:app-ready"));
+  // The event detail is required by Wallet Standard. Wallets that loaded
+  // before this page listen for app-ready and read detail.register; a plain
+  // Event leaves detail undefined, so their signAndSendTransaction feature is
+  // never registered and the app incorrectly falls back to a broken legacy API.
+  window.dispatchEvent(new CustomEvent("wallet-standard:app-ready", { detail: api }));
   return standardWallets;
 }
 
@@ -231,7 +237,11 @@ export async function resolveWalletProvider(id: WalletId): Promise<WalletProvide
 
   // Re-dispatch in case the first discovery occurred before the extension had
   // attached its registration listener. Duplicate registrations are deduped.
-  window.dispatchEvent(new Event("wallet-standard:app-ready"));
+  if (standardAppApi !== null) {
+    window.dispatchEvent(
+      new CustomEvent("wallet-standard:app-ready", { detail: standardAppApi }),
+    );
+  }
 
   // Wait up to 600 ms for an extension to dispatch wallet-standard:register-wallet.
   // This is only on explicit connect, not normal page rendering or wallet-picker display.

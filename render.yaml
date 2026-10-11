@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: usagebar-demo
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: DEVNET_PAYER_KEYPAIR
+        sync: false
+      - key: DEVNET_OPERATOR_KEYPAIR
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

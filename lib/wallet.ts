@@ -304,11 +304,12 @@ function featureMethod(
 export async function connectWallet(
   provider: WalletProvider,
   walletName: string,
+  options: { readonly silent?: boolean } = {},
 ): Promise<ConnectedWallet> {
   const standardConnect = featureMethod(provider, "standard:connect", "connect");
 
   if (standardConnect !== null) {
-    const result = (await standardConnect({})) as {
+    const result = (await standardConnect(options.silent === true ? { silent: true } : {})) as {
       accounts?: readonly { address: string }[];
     };
     const account = result.accounts?.[0];
@@ -331,7 +332,15 @@ export async function connectWallet(
     );
   }
 
-  const result = await provider.connect();
+  // Only attempt an automatic legacy reconnect for Phantom's trusted-site flow.
+  // Never call an unknown legacy adapter's connect() on page load: it may open
+  // a consent popup unexpectedly. Other legacy wallets remain manually connectable.
+  if (options.silent === true && provider.isPhantom !== true) {
+    throw new Error("This legacy wallet does not support a safe silent reconnect.");
+  }
+  const result = await provider.connect(
+    options.silent === true ? { onlyIfTrusted: true } : undefined,
+  );
   const publicKey = result?.publicKey ?? provider.publicKey ?? null;
   if (publicKey === null || publicKey === undefined) {
     throw new Error("The wallet returned no public key. Unlock it and try again.");

@@ -418,6 +418,7 @@ export default function Page() {
             busyRequest={busy}
             openDisabled={Boolean(connected && (!service || (!shortOnFunds && (groqUnavailable || meterStoreUnavailable))))}
             onClose={actions.close}
+            onNewSession={actions.newSession}
             openLabel={openLabel}
             blockedReason={blockedReason}
           />

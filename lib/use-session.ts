@@ -82,6 +82,8 @@ export interface SessionState {
 export interface SessionActions {
   connect(walletId: WalletId): Promise<void>;
   cancelConnect(): void;
+  /** Start a new, clean tab after verified settlement without disconnecting the wallet. */
+  newSession(): void;
   disconnect(): Promise<void>;
   fund(): Promise<void>;
   open(ceilingAtomic: string): Promise<void>;
@@ -92,9 +94,31 @@ export interface SessionActions {
 }
 
 const STORAGE_PREFIX = "usagebar.channel.";
+const WALLET_STORAGE_KEY = "usagebar.wallet";
 
 function storageKey(address: string): string {
   return `${STORAGE_PREFIX}${address}`;
+}
+
+function rememberWalletId(walletId: WalletId): void {
+  try { window.localStorage.setItem(WALLET_STORAGE_KEY, walletId); }
+  catch { /* A missing browser preference must not affect channel safety. */ }
+}
+
+function recallWalletId(): WalletId | null {
+  try {
+    const stored = window.localStorage.getItem(WALLET_STORAGE_KEY);
+    return SUPPORTED_WALLETS.some((wallet) => wallet.id === stored)
+      ? stored as WalletId
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function forgetWalletId(): void {
+  try { window.localStorage.removeItem(WALLET_STORAGE_KEY); }
+  catch { /* A missing browser preference must not affect channel safety. */ }
 }
 
 /**
@@ -166,6 +190,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
   const connectedRef = useRef<ConnectedWallet | null>(null);
   /** Invalidates a pending connection when the user cancels or changes wallets. */
   const connectAttemptRef = useRef(0);
+  const autoReconnectStartedRef = useRef(false);
   /** Guards the AI request so a double click cannot issue two usage vouchers. */
   const runningRef = useRef(false);
   const channelRef = useRef<SessionChannel | null>(null);
@@ -227,19 +252,22 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     }
   }, []);
 
-  const connect = useCallback(async (walletId: WalletId) => {
+  const connect = useCallback(async (walletId: WalletId, silent = false) => {
     const attempt = ++connectAttemptRef.current;
     setNotice(null);
 
     const walletOption = SUPPORTED_WALLETS.find((option) => option.id === walletId);
     const walletName = walletOption?.name ?? walletId;
-    const provider = await resolveWalletProvider(walletId);
+    const provider = await resolveWalletProvider(walletId).catch(() => null);
+    if (connectAttemptRef.current !== attempt) return;
     if (provider === null) {
       setWallet({ status: "disconnected", address: null, name: null });
-      setNotice({
-        tone: "warn",
-        text: `${walletName} was not detected in this browser. Install or enable its browser extension, then reload UsageBar.`,
-      });
+      if (!silent) {
+        setNotice({
+          tone: "warn",
+          text: `${walletName} was not detected in this browser. Install or enable its browser extension, then reload UsageBar.`,
+        });
+      }
       return;
     }
 
@@ -257,7 +285,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
         // Some extensions leave the request pending if their popup is simply
         // closed. The user can cancel immediately in UsageBar; this timeout is
         // the final recovery path if the provider never resolves or rejects.
-        connectWallet(provider, walletName).then(
+        connectWallet(provider, walletName, { silent }).then(
           (value) => {
             window.clearTimeout(timeout);
             resolve(value);
@@ -273,6 +301,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       // success/rejection rather than resurrecting the connection state.
       if (connectAttemptRef.current !== attempt) return;
 
+      rememberWalletId(walletId);
       connectedRef.current = connected;
       setWallet({ status: "connected", address: connected.address, name: connected.walletName });
       void refreshBalances(connected.address);
@@ -317,6 +346,8 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       setWallet({ status: "disconnected", address: null, name: null });
       setPhase("READY");
 
+      if (silent) return;
+
       const detail = error instanceof Error ? error.message : String(error);
       const normalized = detail.toLowerCase();
       const userCancelled =
@@ -342,6 +373,16 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     }
   }, [refreshBalances]);
 
+  // Restore only the wallet ID the user previously selected. Silent connect must
+  // never create a new approval prompt; manual connection remains available if
+  // the extension does not support an already-authorized reconnect.
+  useEffect(() => {
+    if (autoReconnectStartedRef.current) return;
+    autoReconnectStartedRef.current = true;
+    const rememberedWallet = recallWalletId();
+    if (rememberedWallet !== null) void connect(rememberedWallet, true);
+  }, [connect]);
+
   const cancelConnect = useCallback(() => {
     if (wallet.status !== "connecting") return;
     // Invalidates the unresolved provider promise. This resets our UI even
@@ -360,6 +401,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     connectAttemptRef.current += 1;
     const connected = connectedRef.current;
     if (connected !== null) await disconnectWallet(connected.provider);
+    forgetWalletId();
     connectedRef.current = null;
     setWallet({ status: "disconnected", address: null, name: null });
     // The channel itself is untouched: disconnecting a wallet does not close a
@@ -593,6 +635,27 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
     }
   }, [phase]);
 
+  const newSession = useCallback(() => {
+    if (phase !== "SETTLED") return;
+
+    channelRef.current = null;
+    usageAmountRef.current = 0n;
+    voucherSignatureRef.current = null;
+    setChannel(null);
+    setOpenTransaction(null);
+    setSettlementProof(null);
+    setUpdates([]);
+    setUsageAmount(0n);
+    setVoucherSignature(null);
+    setTaskCount(0);
+    setLastExtraction(null);
+    setPhase("READY");
+    setNotice({
+      tone: "info",
+      text: "The previous tab is settled. Choose a spending cap and authorize another tab when ready.",
+    });
+  }, [phase]);
+
   const dismissNotice = useCallback(() => setNotice(null), []);
 
   // -------------------------------------------------------------------------
@@ -633,6 +696,6 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
       taskCount,
       lastExtraction,
     },
-    actions: { connect, cancelConnect, disconnect, fund, open, startService, runUsage, close, dismissNotice },
+    actions: { connect, cancelConnect, disconnect, newSession, fund, open, startService, runUsage, close, dismissNotice },
   };
 }

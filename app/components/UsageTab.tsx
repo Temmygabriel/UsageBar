@@ -59,6 +59,8 @@ export interface UsageTabProps {
   readonly busyRequest: boolean;
   readonly openDisabled?: boolean;
   readonly onClose: () => void;
+  /** Return to READY after verified settlement while preserving the connected wallet. */
+  readonly onNewSession: () => void;
   /**
    * The READY-state primary action's label.
    *
@@ -114,6 +116,7 @@ export default function UsageTab({
   busyRequest,
   openDisabled = false,
   onClose,
+  onNewSession,
   openLabel = "Open tab",
   blockedReason = null,
 }: UsageTabProps) {
@@ -323,9 +326,14 @@ export default function UsageTab({
         <p className={styles.notice}>Groq supplies real AI review. Cumulative voucher updates stay off-chain until close; settlement transactions are real on Solana Devnet. TEST tokens have no real-world value. Use sample or public text only, never confidential agreements.</p>
 
         {state === "SETTLED" && (
-          <p className={styles.settledMessage} role="status">
-            <span className="chip-dot" /> Settled on chain — nothing further is owed.
-          </p>
+          <>
+            <p className={styles.settledMessage} role="status">
+              <span className="chip-dot" /> Settled on chain — nothing further is owed.
+            </p>
+            <button type="button" className="button button-block" onClick={onNewSession}>
+              <span>Authorize another tab</span><span className={styles.buttonArrow} aria-hidden="true">→</span>
+            </button>
+          </>
         )}
 
         <div className={styles.networkNote}>

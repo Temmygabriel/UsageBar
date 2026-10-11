@@ -561,7 +561,12 @@ export async function buildOpenTransaction(
 
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
   const message = pipe(
-    createTransactionMessage({ version: 0 }),
+    // Use a legacy transaction for the browser-facing open flow. There are no
+    // address lookup tables in this one-instruction transaction, and some
+    // injected wallets' legacy request API only accepts legacy serialized
+    // messages. In particular, handing a v0 message to that API can surface an
+    // opaque "Expected String" error even though the wallet is connected.
+    createTransactionMessage({ version: "legacy" }),
     // The Address form, not the Signer form: the whole point is that no signer
     // exists on this side of the request.
     (m) => setTransactionMessageFeePayer(payer, m),

@@ -39,7 +39,7 @@ import {
 import type { ChannelFacts, ProductState, SettlementProof, UsageUpdate } from "./session";
 import {
   connectWallet,
-  getWalletProvider,
+  resolveWalletProvider,
   SUPPORTED_WALLETS,
   disconnectWallet,
   signAndSend,

@@ -85,17 +85,17 @@ function bannerClass(tone: Notice["tone"]): string {
   }
 }
 
-/** A whole number of TEST, for prose. Only ever used for the rate, never money. */
-function ratePerSecond(atomicPerSecond: string, decimals: number): string {
-  const value = Number(atomicPerSecond) / 10 ** decimals;
-  return value >= 1 ? value.toFixed(2) : value.toString();
+/** A readable per-request price. This is copy, never settlement arithmetic. */
+function ratePerRequest(atomicPerRequest: string, decimals: number): string {
+  return (Number(atomicPerRequest) / 10 ** decimals).toFixed(2);
 }
 
 export default function Page() {
   const { state, actions } = useSession();
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
   const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
-  const { wallet, service, channel, facts, updates, notice, busy, balances, settlementProof } = state;
+  const [selectedCeiling, setSelectedCeiling] = useState("10");
+  const { wallet, service, channel, facts, updates, notice, busy, balances, settlementProof, usageAmount, taskCount, lastExtraction } = state;
 
   const decimals = service?.decimals ?? 6;
   const unit = "TEST";
@@ -103,9 +103,15 @@ export default function Page() {
   const connected = wallet.status === "connected";
   const hasChannel = channel !== null;
 
-  /** Until a channel exists, the ceiling is a proposal. After that, it is the deposit. */
-  const ceiling = hasChannel ? BigInt(channel.deposit) : BigInt(service?.ceilingAtomic ?? "50000000");
-  const settled = hasChannel ? BigInt(channel.settled) : 0n;
+  /** The chosen ceiling is user-controlled before opening, chain-read afterwards. */
+  const scale = 10n ** BigInt(decimals);
+  const configuredMaximum = BigInt(service?.ceilingAtomic ?? "50000000");
+  const requestedCeiling = BigInt(selectedCeiling) * scale;
+  const selectedCeilingAtomic = (requestedCeiling <= configuredMaximum ? requestedCeiling : configuredMaximum).toString();
+  const ceiling = hasChannel ? BigInt(channel.deposit) : BigInt(selectedCeilingAtomic);
+  const settled = usageAmount;
+  const groqUnavailable = service !== null && !service.groqConfigured;
+  const meterStoreUnavailable = service !== null && !service.meterStoreConfigured;
 
   /**
    * Whether this wallet needs test funds before it can open a tab.
@@ -139,24 +145,37 @@ export default function Page() {
       : "Connect wallet"
     : shortOnFunds
       ? "Get test funds"
-      : "Open tab";
+      : groqUnavailable
+        ? "Groq API not configured"
+        : meterStoreUnavailable
+          ? "Meter storage not configured"
+          : "Authorize up to " + selectedCeiling + " TEST";
 
-  const onPrimary = !connected
-    ? wallet.status === "connecting"
-      ? actions.cancelConnect
-      : showWalletPicker
-    : shortOnFunds
-      ? actions.fund
-      : actions.open;
+  const onPrimary = (capAtomic: string) => {
+    if (!connected) {
+      if (wallet.status === "connecting") actions.cancelConnect();
+      else showWalletPicker();
+      return;
+    }
+    if (shortOnFunds) {
+      void actions.fund();
+      return;
+    }
+    if (groqUnavailable || meterStoreUnavailable) return;
+    void actions.open(capAtomic);
+  };
 
   const blockedReason = shortOnFunds
-    ? `Your wallet needs Devnet SOL and ${unit} before it can fund a deposit. Pressing the ` +
-      "button above sends both. They are worthless by design."
-    : null;
+    ? `Your wallet needs Devnet SOL and ${unit} before it can fund a deposit. Pressing the button above sends both; they have no real-world value.`
+    : groqUnavailable && connected
+      ? "The Groq key is not configured in this deployment. Add GROQ_API_KEY in Vercel before opening a tab; no deposit will be requested."
+      : meterStoreUnavailable && connected
+        ? "Off-chain voucher storage is not configured. Create a free Upstash Redis database and add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel; no deposit will be requested."
+        : null;
 
   const serviceMeta = service
-    ? `Billed by the second · ${ratePerSecond(service.rateAtomicPerSecond, decimals)} ${unit} per second`
-    : "Billed by the second";
+    ? `${ratePerRequest(service.rateAtomicPerRequest, decimals)} TEST per successful Groq contract review`
+    : "Real Groq AI review · priced per successful request";
 
   return (
     <div className={styles.shell} id="top">
@@ -295,7 +314,7 @@ export default function Page() {
       <main className={styles.main} id="main-content">
         <section className={styles.proposition} aria-labelledby="hero-title">
             <div className={styles.kicker}>
-              <span>THE OPEN TAB</span>
+              <span>METERED AI SERVICE</span>
               <span className={styles.kickerRule} aria-hidden="true" />
             </div>
 
@@ -307,9 +326,34 @@ export default function Page() {
 
             <p className={styles.lede}>
               <span>One approval sets a spending limit.</span>
-              <span>Usage adds up while the service runs.</span>
+              <span>Each successful AI review adds one signed usage voucher.</span>
               <span>Pay for what was used. Get the rest back.</span>
             </p>
+
+            <div className={styles.contractArt} aria-hidden="true">
+              <svg viewBox="0 0 520 300" role="presentation">
+                <path d="M155 43h210v230H155z" fill="var(--paper-raised)" stroke="var(--rule-strong)" strokeWidth="1.2" />
+                <path d="M176 66h112" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" />
+                <text x="176" y="89" fill="var(--ink-muted)" fontSize="9" letterSpacing="1.8" fontFamily="monospace">SERVICE AGREEMENT · 04</text>
+                <text x="176" y="115" fill="var(--ink)" fontSize="19" fontFamily="Georgia, serif">Terms &amp; conditions</text>
+                <path d="M176 139h164M176 150h150M176 161h165M176 181h153M176 192h164M176 203h120" stroke="var(--rule-strong)" strokeWidth="1.5" strokeLinecap="round" />
+                <rect x="176" y="221" width="126" height="31" rx="2" fill="var(--accent-quiet)" stroke="var(--accent)" strokeWidth="1" />
+                <path d="M190 237l5 5 10-12" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <text x="214" y="241" fill="var(--ink)" fontSize="9" letterSpacing="1" fontFamily="monospace">REVIEWED</text>
+                <g transform="translate(330 145) rotate(5)">
+                  <rect x="0" y="0" width="142" height="111" rx="2" fill="var(--paper)" stroke="var(--rule-strong)" strokeWidth="1.2" />
+                  <text x="15" y="21" fill="var(--ink-muted)" fontSize="8" letterSpacing="1.2" fontFamily="monospace">AI REVIEW</text>
+                  <path d="M15 35h111M15 45h98M15 55h108M15 65h88" stroke="var(--rule-strong)" strokeWidth="1.4" strokeLinecap="round" />
+                  <circle cx="28" cy="85" r="8" fill="var(--success-quiet)" stroke="var(--success)" />
+                  <path d="M24 85l3 3 5-6" fill="none" stroke="var(--success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <text x="42" y="88" fill="var(--ink)" fontSize="8" letterSpacing=".7" fontFamily="monospace">CLAUSE CHECK</text>
+                </g>
+                <path d="M72 235h47M96 211v48" stroke="var(--accent)" strokeWidth="1.2" opacity=".5" />
+                <circle cx="96" cy="235" r="15" fill="none" stroke="var(--accent)" strokeWidth="1.2" opacity=".65" />
+                <circle cx="429" cy="57" r="21" fill="var(--success-quiet)" stroke="var(--success)" strokeWidth="1.2" />
+                <path d="M420 57l6 6 12-14" fill="none" stroke="var(--success)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
 
             <ol className={styles.steps} aria-label="How UsageBar works">
               <li className={styles.step}>
@@ -329,8 +373,8 @@ export default function Page() {
                   <rect x="22" y="16" width="7" height="22" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
                   <rect x="34" y="7" width="7" height="31" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
                 </svg>
-                <h2 className={styles.stepTitle}><span>2.</span> Use the service</h2>
-                <p>The meter tracks time used in this demo.</p>
+                <h2 className={styles.stepTitle}><span>2.</span> Review a contract</h2>
+                <p>Each valid Groq result adds one signed usage voucher.</p>
               </li>
               <li className={styles.step}>
                 <svg className={styles.stepIcon} viewBox="0 0 48 48" aria-hidden="true">
@@ -352,8 +396,8 @@ export default function Page() {
 
           <UsageTab
             state={state.state}
-            serviceName="Camera rental"
-            serviceMeta={service ? `Usage-based billing · ${ratePerSecond(service.rateAtomicPerSecond, decimals)} TEST per second` : "Usage-based billing · billed by the second"}
+            serviceName="Contract review"
+            serviceMeta={serviceMeta}
             unitLabel={unit}
             ceiling={ceiling}
             settled={settled}
@@ -362,7 +406,17 @@ export default function Page() {
             facts={facts}
             settlementProof={settlementProof}
             updates={updates}
+            rateAtomicPerRequest={service?.rateAtomicPerRequest ?? "1000000"}
+            groqConfigured={service?.groqConfigured ?? false}
+            selectedCeiling={selectedCeiling}
+            onCeilingChange={setSelectedCeiling}
+            taskCount={taskCount}
+            lastExtraction={lastExtraction}
             onOpen={onPrimary}
+            onStartService={actions.startService}
+            onRunUsage={actions.runUsage}
+            busyRequest={busy}
+            openDisabled={Boolean(connected && (!service || (!shortOnFunds && (groqUnavailable || meterStoreUnavailable))))}
             onClose={actions.close}
             openLabel={openLabel}
             blockedReason={blockedReason}
@@ -385,12 +439,12 @@ export default function Page() {
             <article className={styles.howStep}>
               <span className={styles.howIndex}>02</span>
               <h3>Use the service</h3>
-              <p>Here, a simulated camera-rental timer measures seconds used. The same payment pattern can support metered API calls, AI inference, compute, or data delivery.</p>
+              <p>Here, every successful Groq-powered contract review adds one provider-signed cumulative usage voucher off-chain. No settlement transaction is sent per review.</p>
             </article>
             <article className={styles.howStep}>
               <span className={styles.howIndex}>03</span>
               <h3>Close and settle</h3>
-              <p>At close, the provider receives the recorded amount and the unused balance returns to the customer. You can inspect the result on Solana Devnet.</p>
+              <p>At close, UsageBar submits the latest cumulative voucher once, settles the tab, pays the provider, and returns unused TEST to the customer. You can inspect the resulting Solana Devnet transactions.</p>
             </article>
           </div>
         </div>

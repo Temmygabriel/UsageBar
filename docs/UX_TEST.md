@@ -42,8 +42,8 @@ after the fact is not a measurement — use a stopwatch or a phone.
 
 **Then the second pass.** Section 65 asks for the anti-AI test on top of this:
 cover the logo and the product name, and check whether the payment tab, the
-usage meter, the **Authorized / Used / Remaining** figures, and the
-**Close & settle** button still read as what they are. A judge arriving cold
+contract-review form, the selectable spending cap, the **Used / Unspent cap**
+figures, the off-chain voucher explanation, and **Close & settle** still read as what they are. A judge arriving cold
 sees the same thing, minus anything you explained.
 
 The interface's own labels are worth knowing before running this, because they
@@ -51,9 +51,11 @@ are what the questions below are really testing:
 
 | State | Labels shown |
 |---|---|
-| Before close | `Authorized` · `Used` · `Remaining` |
+| Before opening | `Spending cap (preview)` · `Used (so far)` · `Not committed` |
+| During a session | `Spending cap (authorized)` · `Used (off-chain vouchers)` · `Unspent cap (not refunded yet)` |
 | After close | `Authorized` · `Used` · `Returned` |
-| Action | `Close & settle` |
+| Service action | `Start contract review` · `Run AI review · 1.00 TEST` |
+| Close action | `Close & settle` |
 
 ---
 
@@ -72,26 +74,30 @@ question, verbatim where possible.**
 
 ### 2. What is the customer paying for?
 
+The expected product answer is one Groq-powered contract review per successful request, priced at 1.00 TEST for the demo. Do not explain this before the participant answers.
+
 | | |
 |---|---|
 | Answer (verbatim) | |
 | Time to answer | |
 
-### 3. What does the 50.00 represent?
+### 3. What does the selected cap represent?
+
+The participant sees a selectable cap (5, 10, 25, or 50 TEST), not a fixed 50.00.
 
 | | |
 |---|---|
 | Answer (verbatim) | |
 | Did they describe it as a maximum/ceiling rather than a charge? | |
 
-### 4. What does "used" mean?
+### 4. What event increases the "used" amount?
 
 | | |
 |---|---|
 | Answer (verbatim) | |
-| Did they connect it to actual consumption rather than a flat fee? | |
+| Did they connect it to a successful AI review rather than elapsed time or a flat fee? | |
 
-### 5. What happens when I close the tab?
+### 5. What happens when I press "Close & settle"?
 
 | | |
 |---|---|
@@ -106,7 +112,7 @@ question, verbatim where possible.**
 |---|---|---|
 | 1 — what is this | _not run_ | |
 | 2 — what is paid for | _not run_ | |
-| 3 — the 50.00 | _not run_ | |
+| 3 — the selected cap | _not run_ | |
 | 4 — "used" | _not run_ | |
 | 5 — closing the tab | _not run_ | |
 

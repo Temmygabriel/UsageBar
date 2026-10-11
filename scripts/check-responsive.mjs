@@ -37,29 +37,19 @@ try {
   await page.locator("#hero-title").waitFor({ state: "visible", timeout: 15000 });
   await page.locator('article[aria-label="Usage tab"]').waitFor({ state: "visible", timeout: 15000 });
 
-  const staticInfo = await page.evaluate(async () => {
-    const hero = document.querySelector("#hero-title")?.parentElement;
-    const imageSet = getComputedStyle(hero, "::after").backgroundImage;
-    const match = imageSet.match(/url\(["']?(.*?)["']?\)/);
-    let background = { url: match?.[1] ?? null, naturalWidth: null, naturalHeight: null, loaded: false };
-    if (match?.[1]) {
-      const image = new Image();
-      image.src = new URL(match[1], location.href).href;
-      try {
-        await image.decode();
-        background = { ...background, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight, loaded: true };
-      } catch {
-        background = { ...background, loaded: false };
-      }
-    }
-    const camera = document.querySelector('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]');
+  const staticInfo = await page.evaluate(() => {
+    const heroArt = document.querySelector('section[aria-labelledby="hero-title"] svg[viewBox="0 0 520 300"]');
+    const documentIcon = document.querySelector('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]');
     return {
       title: document.title,
       heading: document.querySelector("#hero-title")?.innerText?.replace(/\s+/g, " ").trim() ?? null,
-      background,
-      cameraIcon: {
-        presentInsideUsageTab: Boolean(camera),
-        outlineOnly: Boolean(camera?.querySelector('[fill="none"][stroke="currentColor"]')),
+      contractIllustration: {
+        present: Boolean(heroArt),
+        accessibleArtworkHasPaths: Boolean(heroArt?.querySelector("path, rect, text")),
+      },
+      documentIcon: {
+        presentInsideUsageTab: Boolean(documentIcon),
+        outlineOnly: Boolean(documentIcon?.querySelector('[fill="none"][stroke="currentColor"]')),
       },
     };
   });
@@ -128,8 +118,9 @@ try {
       // The never-settling provider keeps the pending state open long enough to
       // assert the selected wallet label and Cancel action deterministically.
       const connectingStatus = walletPage.locator("header [role='status']");
+      await walletPage.waitForFunction(() => (document.querySelector("header [role='status']")?.textContent ?? "").toLowerCase().includes("connecting to phantom"), { timeout: 3000 });
       await connectingStatus.waitFor({ state: "visible", timeout: 3000 });
-      if (!(await connectingStatus.innerText()).includes("Connecting to Phantom")) {
+      if (!(await connectingStatus.innerText()).toLowerCase().includes("connecting to phantom")) {
         throw new Error("Header did not identify the selected wallet while connecting.");
       }
 
@@ -267,8 +258,16 @@ try {
         const rect = node.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.bottom <= window.innerHeight;
       })(),
-      cameraIconCount: document.querySelectorAll('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]').length,
-      simulatedCameraDisclosure: document.body.innerText.includes("Camera usage is simulated"),
+      documentIconCount: document.querySelectorAll('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]').length,
+      groqServiceDisclosure: document.body.innerText.includes("Groq supplies real AI review"),
+      contractIllustration: (() => {
+        const node = document.querySelector('section[aria-labelledby="hero-title"] svg[viewBox="0 0 520 300"]');
+        const rect = node?.getBoundingClientRect();
+        return {
+          present: Boolean(node && rect && rect.width > 0 && rect.height > 0),
+          drawableArtworkHasPaths: Boolean(node && node.querySelector("path, rect, circle, text")),
+        };
+      })(),
     }));
 
     const overflow = measurement.documentWidth > width || measurement.bodyWidth > width;
@@ -277,8 +276,10 @@ try {
       && measurement.primaryActionVisibleInFirstViewport
       && measurement.headingText === "Pay for what you actually use."
       && measurement.headingLinesSeparated
-      && measurement.cameraIconCount === 1
-      && measurement.simulatedCameraDisclosure
+      && measurement.documentIconCount === 1
+      && measurement.groqServiceDisclosure
+      && measurement.contractIllustration.present
+      && measurement.contractIllustration.drawableArtworkHasPaths
       && !overflow;
 
     const screenshot = `${outputDir}/viewport-${String(width).padStart(4, "0")}.png`;
@@ -295,8 +296,10 @@ try {
           !measurement.primaryActionVisibleInFirstViewport ? "primary action is below the first viewport" : null,
           measurement.headingText !== "Pay for what you actually use." ? `incorrect hero headline text: "${measurement.headingText}"` : null,
           !measurement.headingLinesSeparated ? "hero headline lines are joined or not displayed as separate lines" : null,
-          measurement.cameraIconCount !== 1 ? "outline camera icon is missing or duplicated inside Usage Tab" : null,
-          !measurement.simulatedCameraDisclosure ? "simulated-camera disclosure is missing" : null,
+          measurement.documentIconCount !== 1 ? "outline document icon is missing or duplicated inside Usage Tab" : null,
+          !measurement.groqServiceDisclosure ? "Groq service disclosure is missing" : null,
+          !measurement.contractIllustration.present ? "contract-review hero illustration is missing" : null,
+          !measurement.contractIllustration.drawableArtworkHasPaths ? "contract-review hero illustration has no drawable SVG artwork" : null,
           overflow ? `horizontal overflow: document=${measurement.documentWidth}, body=${measurement.bodyWidth}, viewport=${width}` : null,
         ].filter(Boolean),
       });

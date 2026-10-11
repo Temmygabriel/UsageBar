@@ -1,7 +1,7 @@
 # Limitations
 
 **Build spec Section 62.**
-Last updated: 2026-10-05.
+Last updated: 2026-10-11.
 
 What UsageBar does not do. Only limitations that actually remain are listed —
 each one is true of the deployed system today, and each says whether it is a
@@ -12,23 +12,17 @@ top of it, running on Devnet, with a test asset. It is not a payment business.**
 
 ---
 
-## 1. The meter measures time, not physical usage
+## 1. Each metered unit is a real Groq contract-review request
 
-The tab bills `0.25 TEST per second` while it is open, in five-second ticks that
-advance by exactly the seconds that elapsed. That is checkable against a
-stopwatch, which is the point — but it is not metering anything physical.
+The demo sends up to 12,000 characters of supplied contract text to Groq using the configured `GROQ_MODEL` (default `openai/gpt-oss-20b`). On a valid model response, the provider signs the next cumulative usage voucher. The UI prices each successful review at **1.00 TEST** so the metering behavior is easy to demonstrate.
 
-There is **no camera telemetry, no sensor integration, and no metering of a real
-machine**. Nothing distinguishes a tab that is being used from a tab that is
-sitting open. The build spec's "pay for what you use" is demonstrated at the
-protocol level — authorize a ceiling, meter against it off-chain, settle once,
-refund the remainder — and the *source* of the usage signal is a timer.
+That is a **demo pricing rule**, not Groq's actual token price and not a guarantee that a review is economically equivalent to 1 TEST. There is no proof on-chain that the model ran or that the provider's review is correct. The provider is trusted to issue vouchers only after a successful review. AI output can omit information or be wrong; the result is not legal advice.
 
-**Why it is not more.** A trustworthy usage oracle is the whole difficulty of
-this class of product, and it is a hardware and attestation problem rather than a
-payments one. The payment channel is the part this project set out to prove, and
-it is the part that is proven. Wiring a camera to a placeholder would have made
-the demo look more complete while proving strictly less.
+**Privacy warning:** the document text is sent to Groq's API. Use the included sample or public, non-confidential text only. Do not submit signed agreements, identity documents, commercial secrets, or other private material. Groq's current terms and free-plan policy govern submitted data; UsageBar does not change them.
+
+**Off-chain state:** Vercel functions are stateless, so UsageBar stores only the latest cumulative amount, the provider's voucher signature, and a review count in Upstash Redis. It does not store contract text or the AI response there. The Vercel runtime must define `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for both Preview and Production. Upstash's free-tier limits apply, and the application refuses to open new tabs when the store is unavailable.
+
+The live AI request is real when `GROQ_API_KEY` is configured in the Vercel runtime. Groq's free plan has rate/token limits and may return HTTP 429; a failed or malformed AI response does not return a voucher to the customer, so UsageBar does not add to the displayed used amount for that request. A free API tier is not an unlimited or permanent service guarantee.
 
 ---
 
@@ -60,8 +54,8 @@ How the system handles that, rather than pretending it does not happen:
 - **A failed read is a failure, never a zero.** Nothing displays a number it did
   not read from chain, so an unreachable RPC produces an error the interface can
   show instead of a stale or invented balance.
-- **A failed tick stops the meter** and says why. Continuing to tick against a
-  chain we cannot reach would leave a stale number on screen looking current.
+- **A failed AI request does not advance the displayed bill.** A valid response is needed before the new signed cumulative voucher is returned.
+- **A failed chain read or settlement fails visibly.** UsageBar does not claim that an off-chain voucher is already settled on-chain.
 - Faucet calls depend on the funder wallet holding Devnet SOL. If it runs dry the
   faucet fails with a clear message rather than a generic error.
 
@@ -146,11 +140,17 @@ run.
 - **No commercial validation.** No merchant has been interviewed, no demand has
   been measured, and no pricing has been tested against a real cost of service.
   The 0.25 TEST/second rate is chosen to make the meter visibly move during a
-  demo, not because it reflects anything.
+  demo, not because it reflects either Groq's actual token cost or market willingness to pay.
 
 ---
 
-## 9. Scale
+## 9. Public AI endpoint and quota abuse
+
+The document-review endpoint is reachable on the public internet and does not have user accounts or per-user billing identities. The Groq key stays server-side and is not sent to the browser, but a public caller could consume the deployment's free-plan quota. Input is limited to 12,000 characters and requests time out after 30 seconds, but these bounds do not replace persistent rate limiting or authentication. The demo should be treated as a public prototype, not deployed for private client documents.
+
+---
+
+## 10. Scale
 
 Hackathon scale. One channel is a 256-byte account and costs a little under
 0.003 SOL in rent; the serverless deployment is a single function with no queue,

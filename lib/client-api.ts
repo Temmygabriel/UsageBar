@@ -21,8 +21,10 @@ export interface ServiceDescription {
   readonly decimals: number;
   readonly treasuryOwner: string;
   readonly ceilingAtomic: string;
-  readonly rateAtomicPerSecond: string;
+  readonly rateAtomicPerRequest: string;
   readonly gracePeriodSeconds: number;
+  readonly groqConfigured: boolean;
+  readonly meterStoreConfigured: boolean;
 }
 
 /** A channel account as the server read it. Amounts are decimal strings. */
@@ -122,6 +124,8 @@ export function toChannelFacts(
 export interface SessionRead {
   readonly service: ServiceDescription;
   readonly channel: (SessionChannel & { statusName: string }) | null;
+  /** Provider-side durable cumulative voucher state; null if storage is not configured. */
+  readonly offchainUsage?: { readonly cumulative: string; readonly voucherSignature: string | null; readonly count: number } | null;
   /** True when the server looked and found nothing — a finished tab, not an error. */
   readonly closed?: boolean;
 }
@@ -140,27 +144,11 @@ export interface OpenResponse {
   readonly ceilingAtomic: string;
 }
 
-export function buildOpenTransaction(address: string): Promise<OpenResponse> {
-  return call<OpenResponse>("/api/session", {
-    method: "POST",
-    body: JSON.stringify({ action: "open", address }),
-  });
-}
+export function buildOpenTransaction(address:string,ceilingAtomic:string):Promise<OpenResponse>{return call<OpenResponse>("/api/session",{method:"POST",body:JSON.stringify({action:"open",address,ceilingAtomic})});}
 
-export interface UsageResponse {
-  readonly advanced: boolean;
-  readonly settled: string;
-  readonly signature: string | null;
-  readonly reason: string | null;
-  readonly service: ServiceDescription;
-}
-
-export function commitUsage(channel: string, seconds: number): Promise<UsageResponse> {
-  return call<UsageResponse>("/api/session", {
-    method: "POST",
-    body: JSON.stringify({ action: "usage", channel, seconds }),
-  });
-}
+export interface ExtractionResult{readonly documentType:string;readonly summary:string;readonly parties:string[];readonly dates:string[];readonly monetaryTerms:string[];readonly clauses:string[];readonly risks:string[];readonly missingDetails:string[];readonly disclaimer:string;}
+export interface UsageResponse{readonly advanced:boolean;readonly cumulative:string;readonly voucherSignature:string|null;readonly reason:string|null;readonly extraction:ExtractionResult|null;readonly service:ServiceDescription;}
+export function runMeteredExtraction(channel:string,previousCumulativeAtomic:string,previousVoucherSignature:string|null,documentText:string):Promise<UsageResponse>{return call<UsageResponse>("/api/session",{method:"POST",body:JSON.stringify({action:"usage",channel,previousCumulativeAtomic,previousVoucherSignature,documentText})});}
 
 export interface CloseResponse {
   readonly sealSignature: string;
@@ -173,12 +161,7 @@ export interface CloseResponse {
   readonly service: ServiceDescription;
 }
 
-export function closeSession(channel: string): Promise<CloseResponse> {
-  return call<CloseResponse>("/api/session", {
-    method: "POST",
-    body: JSON.stringify({ action: "close", channel }),
-  });
-}
+export function closeSession(channel:string,cumulativeAtomic:string,voucherSignature:string|null):Promise<CloseResponse>{return call<CloseResponse>("/api/session",{method:"POST",body:JSON.stringify({action:"close",channel,cumulativeAtomic,voucherSignature})});}
 
 export interface FaucetResponse {
   readonly solSignature: string;

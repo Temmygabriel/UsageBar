@@ -58,7 +58,7 @@ Explain in simple terms:
 1. What is UsageBar?
 2. Who is it for?
 3. What exact problem is it solving?
-4. What is the camera-rental demo?
+4. What is the Groq contract-review demo?
 5. What is the one core user journey?
 6. What makes the product different from a normal billing database?
 7. What role does Solana Payment Channels play?
@@ -504,7 +504,7 @@ The intended desktop composition is:
 │  small product label                ┌─────────────────────────────┐  │
 │                                     │       USAGE TAB             │  │
 │  PAY FOR WHAT                       │                             │  │
-│  YOU ACTUALLY                       │   CAMERA RENTAL             │  │
+│  YOU ACTUALLY                       │   CONTRACT REVIEW           │  │
 │  USE.                               │                             │  │
 │                                     │   AUTHORIZED     $50.00     │  │
 │  Open one payment tab.              │   USED            $12.40    │  │
@@ -556,7 +556,7 @@ It should have:
 
 - a document/receipt-like silhouette;
 - strong top label `USAGE TAB`;
-- service identity `CAMERA RENTAL`;
+- service identity `CONTRACT REVIEW`;
 - clearly separated amounts;
 - usage meter;
 - session status;
@@ -716,15 +716,19 @@ The product idea is simple:
 
 A customer opens one usage-payment tab with a maximum spending ceiling. The service records cumulative usage through signed vouchers. At the end of the session, the actual amount used is settled and the unused remainder is returned/recoverable.
 
-The first demo use case is:
+The implemented demo use case is:
 
-> **Camera rental**
+> **Groq-powered contract review**
+
+A customer authorizes a selectable maximum of 5, 10, 25, or 50 TEST, starts the service, and submits sample or public contract text. Each successful Groq review returns a structured analysis and adds one provider-signed cumulative voucher off-chain. The demo price is 1.00 TEST per successful review; it is a demonstration rule, not Groq's actual token cost. A failed or invalid AI response must not increase the used amount. On close, the latest voucher is submitted once, the channel is settled, and the unused deposit is returned.
 
 Example:
 
-- Maximum authorized: 50.00 test units
-- Actual usage: 12.40 test units
-- Unused remainder: 37.60 test units
+- Maximum authorized: 10.00 TEST
+- Three successful reviews: 3.00 TEST used
+- Unused remainder returned: 7.00 TEST
+
+TEST is a worthless Devnet token. This is a document-understanding demonstration, not legal advice. Only submit sample or public, non-confidential text because the content is sent to Groq.
 
 These amounts are **test/devnet values, not real Mainnet funds**.
 
@@ -924,6 +928,19 @@ Do not assume the current submission form requirements remain unchanged. Re-open
 
 ---
 
+### Implementation amendment — 11 October 2026
+
+This amendment supersedes earlier camera-rental/timer passages in this document where they conflict with the current implementation.
+
+- Service: Groq contract review using the OpenAI-compatible Chat Completions API and default model ID openai/gpt-oss-20b.
+- Unit: one successful valid AI review = 1.00 TEST under an explicitly illustrative demo price.
+- Cap: the customer chooses 5, 10, 25, or 50 TEST before the wallet signs the channel-open transaction.
+- Lifecycle: connect wallet → obtain Devnet test funds if needed → authorize cap → explicitly start service → submit a contract-review request → receive structured Groq output → sign and retain the cumulative voucher off-chain → close → submit latest voucher with settle-and-seal → distribute provider payment and refund.
+- Failed or malformed AI responses must not advance the client-visible used amount or return a voucher.
+- The live Vercel runtime requires GROQ_API_KEY. A GitHub Actions secret is not automatically available to a Vercel server function.
+- Do not send confidential documents. This is not legal advice. The TEST price is not a representation of Groq's token cost.
+- The usage amount remains explicitly off-chain until the close transaction is verified. Per-request voucher signatures must never be linked or labeled as Solana transaction signatures.
+
 # 3. PRODUCT LOCK
 
 ## 3.1 Name
@@ -944,13 +961,13 @@ A customer using a service whose final price depends on measured usage.
 
 ## 3.5 Initial demo vertical
 
-**Equipment rental**
+**Metered AI / API service**
 
 ## 3.6 Initial demo product
 
-**Camera Rental**
+**Groq Contract Review**
 
-This is a demonstration environment only. We are not building a camera-rental marketplace.
+A real Groq chat-completion request analyzes sample contract text and returns structured fields. This is a document-understanding demonstration, not legal advice or a substitute for a lawyer. The API key stays server-side; the live Vercel runtime must define GROQ_API_KEY. The customer selects a TEST cap and pays one TEST for each successful review under the demo's own pricing rule.
 
 ## 3.7 Core problem
 
@@ -1201,26 +1218,25 @@ Responsibilities:
 
 # 10. TRUST MODEL
 
-The application must not imply that the physical camera or service usage itself is trustlessly verified.
+The service event is a real successful Groq API review; the payment mechanism is real on Solana Devnet. The chain does not independently prove that the model ran or that an answer is legally correct.
 
-For the MVP:
-
-> **The service meter is simulated. The payment mechanism is real.**
+> **The metered service is real; demo pricing and provider attestation are not trustless.**
 
 The product claim is:
 
-- usage data is turned into cumulative signed payment authorization;
-- the payment channel enforces the ceiling;
-- final settlement is onchain;
-- unused funds remain recoverable according to the protocol.
+- a successful AI response is one service event;
+- the provider signs a cumulative voucher after a valid response;
+- the voucher stays off-chain during usage;
+- the Payment Channels program enforces the spending ceiling;
+- close submits the latest voucher, then distribution pays the provider and returns unused escrow.
 
 The product is **not** claiming:
 
-- an IoT oracle;
-- physical camera telemetry;
-- automated proof that a real camera was used;
-- fraud-free metering;
-- production insurance against provider fraud.
+- on-chain proof of model inference or output quality;
+- legal advice or professional legal review;
+- a TEST price derived from Groq token costs;
+- unlimited free-tier API capacity;
+- production guarantees against provider fraud.
 
 ---
 
@@ -1236,7 +1252,7 @@ Sees:
 
 and:
 
-> Camera Rental
+> Groq Contract Review
 
 with a $50 test ceiling.
 
@@ -1254,7 +1270,7 @@ State becomes:
 
 ## 11.3 Start usage
 
-User starts simulated camera rental session.
+User selects Start contract review.
 
 State becomes:
 
@@ -1262,7 +1278,11 @@ State becomes:
 
 ## 11.4 Usage changes
 
-The service meter produces cumulative usage:
+The user pastes sample contract text (or uses the supplied sample) and selects Run AI review. Groq returns a structured analysis. If the response is valid and the cap permits another review, the provider signs a new cumulative Ed25519 voucher off-chain. Each successful review adds 1.00 TEST; failed requests do not advance the displayed bill. The UI shows the summary, parties, dates, monetary terms, clauses, potential risks and missing details.
+
+Previous proof-of-concept timer examples below are historical protocol test data, not claims about the new live service.
+
+Historical usage figures:
 
 ```text
 2.40
@@ -1728,7 +1748,7 @@ The demo scenario is:
 
 ```text
 Service:
-Camera Rental
+Groq Contract Review
 
 Maximum:
 50.00 test units
@@ -2207,18 +2227,19 @@ Actual Usage Tab component.
 Concept:
 
 ```text
-CAMERA RENTAL
+GROQ CONTRACT REVIEW
 
-AUTHORIZED              50.00
-USED                    12.40
-REMAINING               37.60
+CAP (AUTHORIZED)        10.00 TEST
+USED (OFF-CHAIN)         2.00 TEST
+CAP LEFT (NOT REFUNDED)  8.00 TEST
 
-███████────────────────
+███────────────────────
 
-37 signed usage updates
+2 successful AI reviews
 
 ACTIVE
 
+[ RUN AI REVIEW · 1.00 TEST ]
 [ CLOSE & SETTLE ]
 ```
 
@@ -3016,7 +3037,7 @@ Close:
 
 ## Short description
 
-> UsageBar brings the familiar idea of opening a service tab to crypto-native payments. A customer authorizes a maximum amount once, usage accumulates through signed vouchers, and the final amount is settled when the session closes. Our demo uses camera rental as a simple usage-based service: 50.00 test units are authorized, 12.40 is consumed, and 37.60 remains unused. The mechanism is powered by Solana Payment Channels rather than a custom payment-channel contract.
+> UsageBar brings the familiar idea of opening a service tab to crypto-native payments. A customer selects a TEST spending cap once, then uses a Groq-powered contract-review service. Each successful AI review costs 1.00 TEST under the demo pricing rule and adds a cumulative Ed25519 voucher off-chain. When the customer closes the tab, UsageBar submits the latest voucher, settles the channel, pays the used amount, and returns the unused balance. The API key stays server-side; this is a document-understanding demo, not legal advice. The mechanism is powered by Solana Payment Channels rather than a custom payment-channel contract.
 
 Only call the remainder "returned" if the actual protocol run proves it.
 

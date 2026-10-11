@@ -488,7 +488,9 @@ export interface OpenTransaction {
 export async function buildOpenTransaction(
   config: ServerConfig,
   payerAddress: string,
+  requestedCeiling: bigint = config.ceilingAtomic,
 ): Promise<OpenTransaction> {
+  if (requestedCeiling <= 0n || requestedCeiling > config.ceilingAtomic) throw new Error(`The requested cap must be above zero and no greater than the service maximum of ${config.ceilingAtomic} atomic units.`);
   const rpc = rpcFor(config);
   const addressEncoder = getAddressEncoder();
   const payer = address(payerAddress);
@@ -550,7 +552,7 @@ export async function buildOpenTransaction(
     data: encodeOpenArgs({
       addressEncoder,
       salt,
-      deposit: config.ceilingAtomic,
+      deposit: requestedCeiling,
       gracePeriod: config.gracePeriodSeconds,
       openSlot,
       recipients: [],
@@ -581,148 +583,19 @@ export async function buildOpenTransaction(
 // Usage — the meter
 // ---------------------------------------------------------------------------
 
-export interface UsageResult {
-  readonly advanced: boolean;
-  readonly settled: string;
-  readonly signature: string | null;
-  readonly reason: string | null;
-}
+export interface UsageResult { readonly advanced:boolean; readonly cumulative:string; readonly voucherSignature:string|null; readonly reason:string|null; }
 
-/**
- * Advance the settled watermark by a signed cumulative voucher.
- *
- * This is the product. The voucher is signed OFF CHAIN with the provider's key
- * and only the resulting watermark touches the chain, which is why usage can
- * accrue continuously while costing one transaction per update instead of one
- * per unit of use.
- *
- * The amount is CUMULATIVE, never a delta. Each voucher supersedes the last, so
- * a dropped, reordered or duplicated update is harmless — the chain keeps the
- * highest watermark it has seen and rejects anything that does not strictly
- * advance it (error 234). That property is what makes this safe to call from a
- * timer.
- *
- * Clamped to the deposit and skipped when it would not move: both are cases the
- * program rejects (errors 235 and 234), and a no-op is a better answer than a
- * failed transaction the caller has to interpret.
- */
-export async function commitUsage(
-  config: ServerConfig,
-  channelAddress: string,
-  seconds: number,
-): Promise<UsageResult> {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    throw new Error(`seconds must be a positive number, got ${seconds}.`);
-  }
-
-  const rpc = rpcFor(config);
-  const current = await readChannel(config, channelAddress);
-  if (current === null) {
-    throw new Error(`No channel at ${channelAddress}. It may already have been closed.`);
-  }
-  const { channel } = current;
-
-  if (channel.status !== 0) {
-    return {
-      advanced: false,
-      settled: channel.settled.toString(),
-      signature: null,
-      reason:
-        `The channel is ${CHANNEL_STATUS[channel.status] ?? "in an unknown state"}, and usage can ` +
-        "only be metered while it is Open.",
-    };
-  }
-
-  // Bill for the elapsed time, in whole seconds, without ever exceeding what
-  // the customer authorized.
-  const elapsedSeconds = BigInt(Math.floor(seconds));
-  const requested = channel.settled + config.rateAtomicPerSecond * elapsedSeconds;
-  const target = requested > channel.deposit ? channel.deposit : requested;
-
-  if (target <= channel.settled) {
-    return {
-      advanced: false,
-      settled: channel.settled.toString(),
-      signature: null,
-      reason:
-        channel.settled >= channel.deposit
-          ? "The tab has reached its authorized ceiling; further usage would exceed it."
-          : "Too little time has passed to move the meter by a whole unit.",
-    };
-  }
-
-  const addressEncoder = getAddressEncoder();
-  const channelId = address(channelAddress);
-
-  // The signed message IS the voucher: 50 bytes, no framing, exactly what the
-  // program transmutes and compares.
-  const voucherPayload = buildVoucherPayload(addressEncoder, channelId, target, 0n);
-  const operatorSeed = config.operatorSecretKey.subarray(0, 32);
-  const { signature: voucherSignature, publicKey } = await signVoucher(operatorSeed, voucherPayload);
-
-  // The program compares the precompile's pubkey against the channel's
-  // authorized_signer. A mismatch is error 237, and it is worth catching here
-  // because the cause — a channel opened against a different provider key — is
-  // not obvious from that code.
-  if (getAddressDecoder().decode(publicKey) !== channel.authorizedSigner) {
-    throw new Error(
-      "The configured operator key is not this channel's authorized signer. This channel was " +
-        "opened against a different provider, so its usage cannot be metered from here.",
-    );
-  }
-
-  const precompileInstruction = {
-    programAddress: address(ED25519_PRECOMPILE),
-    accounts: [],
-    data: buildEd25519PrecompileData(publicKey, voucherSignature, voucherPayload),
-  };
-
-  const settleInstruction = {
-    programAddress: PROGRAM,
-    accounts: [
-      { address: channelId, role: AccountRole.WRITABLE },
-      { address: INSTRUCTIONS_SYSVAR_ADDRESS, role: AccountRole.READONLY },
-    ],
-    // Only the discriminator. The voucher rides in the precompile above.
-    data: new Uint8Array([DISCRIMINATOR.settle]),
-  };
-
-  const payer = await signerFor(config.payerSecretKey);
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
-
-  // ORDER IS LOAD-BEARING. The program loads instruction `current - 1` from the
-  // instructions sysvar and parses it as the precompile. Any instruction
-  // between these two — even a harmless one — breaks settlement with error 230.
-  const message = pipe(
-    createTransactionMessage({ version: 0 }),
-    (m) => setTransactionMessageFeePayerSigner(payer, m),
-    (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-    (m) => appendTransactionMessageInstructions([precompileInstruction, settleInstruction], m),
-  );
-
-  const signed = await signTransactionMessageWithSigners(message);
-  const signature = getSignatureFromTransaction(signed);
-  await sendAndConfirm(rpc, getBase64EncodedWireTransaction(signed));
-
-  // Read it back rather than trusting the number we asked for. Section 12: the
-  // interface may not show a result that has not been read from chain.
-  const after = await readChannel(config, channelAddress);
-  if (after === null) {
-    throw new Error("The channel vanished immediately after a usage update.");
-  }
-  if (after.channel.settled !== target) {
-    throw new Error(
-      `Asked the chain to settle to ${target}, but it reports ${after.channel.settled}. ` +
-        "The meter and the chain disagree, so this reading is not trustworthy.",
-    );
-  }
-
-  return {
-    advanced: true,
-    settled: after.channel.settled.toString(),
-    signature,
-    reason: null,
-  };
+/** Issue a cumulative usage voucher off-chain. No Solana transaction is sent here. */
+export async function commitUsage(config:ServerConfig,channelAddress:string,previousCumulative:string,previousVoucherSignature:string|null):Promise<UsageResult>{
+ const current=await readChannel(config,channelAddress);if(current===null)throw new Error(`No channel at ${channelAddress}. It may already have been closed.`);
+ const {channel}=current;if(channel.status!==0)return{advanced:false,cumulative:channel.settled.toString(),voucherSignature:null,reason:`The channel is ${CHANNEL_STATUS[channel.status]??"in an unknown state"}; usage can only be metered while it is Open.`};
+ let previous:bigint;try{previous=BigInt(previousCumulative);}catch{throw new Error("The previous cumulative amount must be an integer atomic-unit value.");}
+ if(previous<channel.settled||previous>channel.deposit)throw new Error("The previous usage amount is outside this channel's verified range.");
+ const enc=getAddressEncoder(),id=address(channelAddress),seed=config.operatorSecretKey.subarray(0,32);
+ if(previous>channel.settled){if(previousVoucherSignature===null||!/^[0-9a-f]{128}$/i.test(previousVoucherSignature))throw new Error("The previous off-chain voucher is missing or malformed.");const oldPayload=buildVoucherPayload(enc,id,previous,0n),oldSigned=await signVoucher(seed,oldPayload);if(getAddressDecoder().decode(oldSigned.publicKey)!==channel.authorizedSigner||Buffer.from(oldSigned.signature).toString("hex")!==previousVoucherSignature.toLowerCase())throw new Error("The previous voucher signature does not match its amount.");}
+ const next=previous+config.rateAtomicPerRequest;if(next>channel.deposit)throw new Error("This request would exceed the authorized cap. Close and settle before running more requests.");
+ const payload=buildVoucherPayload(enc,id,next,0n),signed=await signVoucher(seed,payload);if(getAddressDecoder().decode(signed.publicKey)!==channel.authorizedSigner)throw new Error("The configured provider key is not this channel's authorized signer.");
+ return{advanced:true,cumulative:next.toString(),voucherSignature:Buffer.from(signed.signature).toString("hex"),reason:null};
 }
 
 // ---------------------------------------------------------------------------
@@ -764,6 +637,8 @@ export interface CloseResult {
 export async function closeChannel(
   config: ServerConfig,
   channelAddress: string,
+  requestedCumulative: string,
+  requestedVoucherSignature: string | null,
 ): Promise<CloseResult> {
   const rpc = rpcFor(config);
   const addressEncoder = getAddressEncoder();
@@ -788,25 +663,10 @@ export async function closeChannel(
   const payer = await signerFor(config.payerSecretKey);
   const mint = address(config.mint);
 
-  // How much was actually used is read, not assumed.
-  const finalCumulative = channel.settled;
-
-  // NO VOUCHER ON THE SEAL, and this is not an optimisation — attaching one is
-  // the obvious-looking mistake and it fails on chain.
-  //
-  // A voucher must *strictly* advance the watermark; the program rejects one
-  // that merely equals it, with error 234 (`voucherWatermarkNotMonotonic`). The
-  // only amount the server knows at close time is the one already recorded, so
-  // a voucher built from it can never satisfy that rule. Nor can a voucher be
-  // invented from `settled + something`: the "something" would be a number of
-  // seconds between the last meter tick and this request, which nobody measured
-  // and which would bill the customer for an interval no one observed.
-  //
-  // `hasVoucher: false` therefore freezes the watermark at the last metered
-  // reading. That is the fair rule — the customer pays for the time the meter
-  // actually recorded and the gap before the close is free — and it is the path
-  // the canonical run used.
-  const sealInstructions: (Instruction & InstructionWithSigners)[] = [];
+  let finalCumulative:bigint;try{finalCumulative=BigInt(requestedCumulative);}catch{throw new Error("The final cumulative amount must be an integer atomic-unit value.");}
+  if(finalCumulative<channel.settled||finalCumulative>channel.deposit)throw new Error("The final voucher is outside the on-chain watermark and authorized cap.");
+  const sealInstructions:(Instruction & InstructionWithSigners)[]=[];let hasVoucher=false;
+  if(finalCumulative>channel.settled){if(requestedVoucherSignature===null||!/^[0-9a-f]{128}$/i.test(requestedVoucherSignature))throw new Error("The latest usage voucher is missing or malformed.");const payload=buildVoucherPayload(getAddressEncoder(),channelId,finalCumulative,0n);const sig=await signVoucher(config.operatorSecretKey.subarray(0,32),payload);if(getAddressDecoder().decode(sig.publicKey)!==channel.authorizedSigner||Buffer.from(sig.signature).toString("hex")!==requestedVoucherSignature.toLowerCase())throw new Error("The latest voucher signature does not match the final amount.");sealInstructions.push({programAddress:address(ED25519_PRECOMPILE),accounts:[],data:buildEd25519PrecompileData(sig.publicKey,sig.signature,payload)});hasVoucher=true;}
 
   // The accounts are built into a typed variable rather than written inline.
   // Writing them inline makes them a *fresh* object literal, and a fresh literal
@@ -824,9 +684,8 @@ export async function closeChannel(
   sealInstructions.push({
     programAddress: PROGRAM,
     accounts: sealAccounts,
-    // False: no precompile precedes this instruction, so the watermark stands
-    // at the last metered reading rather than being advanced by the seal.
-    data: encodeSettleAndSealData(false),
+    // The voucher precompile immediately precedes this instruction when present.
+    data: encodeSettleAndSealData(hasVoucher),
   });
 
   const { value: sealBlockhash } = await rpc.getLatestBlockhash().send();

@@ -23,13 +23,7 @@ part of this document as the rest.
 > through signed vouchers, and the final amount is settled when the session
 > closes.
 >
-> Our demo uses camera rental as a simple usage-based service. In the committed
-> canonical run, **50.00 test units are authorized, 6.25 is consumed over five
-> metered intervals, and 43.75 is returned to the customer** — read back from
-> the chain, not from a local calculation. The mechanism is Solana Payment
-> Channels, the deployed program at
-> `CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX`, rather than a custom
-> payment-channel contract.
+> The current product demo is a Groq-powered contract-review service. The customer chooses a maximum of 5, 10, 25, or 50 TEST. Each successful review costs 1.00 TEST under the demo pricing rule and adds a provider-signed cumulative voucher off-chain. On close, the latest voucher is submitted and the channel is settled; the used amount is paid to the provider and the unused amount is returned. The older committed canonical run proves the protocol payout path (50.00 deposited, 6.25 metered, 43.75 returned), but it predates this AI-service integration and is not evidence that Groq was called.
 
 Those three numbers are not illustrative. They are
 [`evidence/canonical-run/09-settlement.json`](../evidence/canonical-run/09-settlement.json):
@@ -75,18 +69,9 @@ behind it was found and fixed. Neither check is ours to forget.
 
 ## How it works
 
-1. **Open.** The customer connects Phantom and signs one transaction. It moves
-   their deposit into a channel PDA and registers the provider and the
-   authorized signer. The customer's key never leaves their wallet, and nothing
-   else is ever asked of them.
-2. **Meter.** The provider signs cumulative vouchers — 50-byte Ed25519 messages
-   carrying a running total, never a delta. Each is submitted with the
-   `settle` instruction, which reads the voucher from the instructions sysvar
-   rather than from its own data. No blockchain transfer happens per usage
-   event.
-3. **Close.** The provider seals the channel, freezing the watermark at the last
-   metered reading, and `distribute` pays the provider what was metered and
-   returns `deposit − settled` to the customer.
+1. **Open.** The customer connects a supported wallet on Devnet, chooses a cap, and signs the channel-open transaction. The deposit moves into the channel escrow; UsageBar never receives the customer's private key.
+2. **Review.** The customer starts the service and submits sample contract text. The server calls Groq's OpenAI-compatible API. Only after a valid structured response does the client receive the next provider-signed cumulative 50-byte Ed25519 voucher. The voucher is off-chain; there is no Solana transaction per AI request. Each successful review costs 1.00 TEST under the demo's explicit pricing rule.
+3. **Close.** UsageBar submits the latest cumulative voucher with the cooperative settle-and-seal instruction, then sends a distribution transaction. The provider receives the used amount and the customer's unused deposit is returned.
 
 The customer can always leave without the provider's cooperation:
 `requestClose` starts a grace clock and `seal` is callable by anyone once it
@@ -102,7 +87,7 @@ exercised on Devnet in
 | Protocol | [Solana Payment Channels](https://github.com/solana-foundation/payment-channels), program `CHNLxYvVA28MJP9PrFuDXccuoGXAx7jBacfLEkahyGsX` |
 | Client | Next.js 16, React 19, TypeScript, `@solana/kit` 8.4 |
 | Wallet selection | Phantom, Solflare, and OKX Wallet; uses Wallet Standard where available and brand-specific injected-provider fallback |
-| Hosting | Vercel (serverless API routes hold the provider's key) |
+| Hosting | Vercel (serverless API routes hold the Payment Channels signer and Groq API key server-side) |
 | CI | GitHub Actions — typecheck, 110 tests across 4 files, production build on every push |
 | Tooling | Six devnet scripts under [`../tools/`](../tools/), plus a chain verifier and a deployment probe |
 
@@ -143,9 +128,11 @@ evidence:
 - **The application does not use the four extended paths.** They are proven
   against the program, driven directly by tooling. A judge cannot reach them by
   clicking anything. A proven instruction is not an integrated one.
-- **Metering is simulated.** The camera is a demo service; the meter advances on
-  a real clock against real vouchers, but the usage it represents is not real
-  telemetry, and nothing here claims otherwise.
+- **Provider-attested metering.** The meter counts successful Groq contract-review calls, not seconds. The provider signs the voucher, and the chain does not independently prove the model ran or that the answer is correct.
+- **Demo-only pricing.** 1 TEST per successful review is illustrative, not Groq's actual token cost or validated commercial pricing.
+- **AI and privacy.** The output is not legal advice. Use sample/public documents only because contract text is sent to Groq's API.
+- **Runtime secret.** Vercel must have GROQ_API_KEY configured in its own environment variables; GitHub Actions secrets are not automatically injected into Vercel runtime functions.
+- **Off-chain meter storage is a free-tier dependency.** Upstash Redis stores the provider-authoritative cumulative amount, voucher signature, and review count; the browser keeps a convenience copy for resume. Vercel must define `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` as well as `GROQ_API_KEY`. The prototype is not production billing infrastructure, and free-tier limits apply.
 - **Devnet only.** Test funds, no real economic value.
 
 ## Team

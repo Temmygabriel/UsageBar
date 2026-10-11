@@ -29,8 +29,8 @@
  *
  *   PROVES      the deployed serverless functions hold working keys, reach
  *               devnet RPC, sign, send and confirm; that opening a channel moves
- *               the customer's money into escrow; that the meter advances a real
- *               watermark on chain; that closing pays the provider and refunds
+ *               the customer's money into escrow; that successful Groq request returns structured output and a cumulative voucher;
+ *               that voucher stays off-chain until close, which submits it and refunds
  *               the customer exactly; and that malformed input is refused before
  *               anything is signed.
  *   DOES NOT    exercise the wallet-standard handshake in a browser. That is
@@ -73,14 +73,14 @@ const CHANNEL = argOf("channel", "4LtkUAsruLTTi9xzwy6Zd67U8uz8d8sX72gyYsKjPz4S")
 
 /** From `evidence/canonical-run/02-channel-open.json`. */
 const EXPECTED_DEPOSIT = "50000000";
+const SAMPLE_CONTRACT = "SERVICE AGREEMENT\n\nThis Agreement is entered into on 15 October 2026 between Northstar Studio (the Client) and A. Okafor (the Consultant). The Consultant will deliver a website redesign and source files by 30 November 2026. The Client will pay NGN 850,000: 40% on commencement and 60% after acceptance. Either party may terminate this Agreement with 14 days written notice. The Consultant must keep business information confidential for two years. The Client owns the final deliverables after full payment, but third-party assets remain under their original licences. Late delivery may extend the deadline only where both parties agree in writing. The agreement does not state a dispute-resolution process, a limitation of liability, or what happens if acceptance feedback is delayed.";
 const EXPECTED_SETTLED = "6250000";
 const EXPECTED_REMAINDER = "43750000";
 
 /** The provider. Its balance is read directly, so the payout is not taken on trust. */
 const PROVIDER = "39pNZY2aqhCMaKXeychLHXDNvZ6CTWLPzWAHDPrDzP5T";
 
-/** Long enough for two metering intervals plus a slow devnet confirmation. */
-const METER_SECONDS = 5;
+
 
 // ---------------------------------------------------------------------------
 // Reporting
@@ -439,6 +439,11 @@ async function probeFullFlow(wallet, mint, fundedTokens) {
   check(true, "POST /api/session { open } answered 200");
 
   const built = openResponse.json;
+  check(built?.service?.groqConfigured === true, "the Vercel runtime has GROQ_API_KEY configured");
+  if (built?.service?.groqConfigured !== true) {
+    console.log("    configure GROQ_API_KEY in Vercel before running the full metered-service probe");
+    return {};
+  }
   const channelAddress = built?.channel;
   check(typeof channelAddress === "string", `the deployment derived channel ${channelAddress}`);
 
@@ -489,52 +494,49 @@ async function probeFullFlow(wallet, mint, fundedTokens) {
   );
 
   // -------------------------------------------------------------------------
-  // The meter
+  // One real Groq request; usage voucher stays off-chain until close
   // -------------------------------------------------------------------------
 
   const providerBefore = (await tokensOf(PROVIDER, mint)) ?? 0n;
-
   let previous = 0n;
+  let latestVoucherSignature = null;
   const meterReadings = [];
-  for (const round of [1, 2]) {
-    const started = Date.now();
-    await sleep(METER_SECONDS * 1000);
-    const usage = await postJson("/api/session", {
-      action: "usage",
-      channel: channelAddress,
-      seconds: Math.round((Date.now() - started) / 1000),
-    });
-    check(usage.status === 200, `round ${round}: the meter answered 200`);
-    const advanced = usage.json?.advanced === true;
-    check(advanced, `round ${round}: the watermark advanced`);
-    if (!advanced) {
-      console.log(`    reason: ${usage.json?.reason}`);
-      continue;
-    }
-    const settled = BigInt(usage.json.settled);
-    check(settled > previous, `round ${round}: settled ${previous} → ${settled}`);
-    meterReadings.push({ round, settled: settled.toString(), signature: usage.json.signature });
 
-    // And read it back from the chain, not from the answer.
-    const live = await rpc("getAccountInfo", [channelAddress, { encoding: "base64", commitment: "confirmed" }]);
-    const liveData = Buffer.from(live.value.data[0], "base64");
-    check(
-      liveData.readBigUInt64LE(20) === settled,
-      `round ${round}: byte 20 of the channel agrees — ${liveData.readBigUInt64LE(20)}`,
-    );
-    previous = settled;
+  const usage = await postJson("/api/session", {
+    action: "usage",
+    channel: channelAddress,
+    previousCumulativeAtomic: "0",
+    previousVoucherSignature: null,
+    documentText: SAMPLE_CONTRACT,
+  });
+  check(usage.status === 200, `Groq review answered ${usage.status}`);
+  const advanced = usage.json?.advanced === true;
+  check(advanced, `the successful Groq review advanced usage: ${usage.json?.reason ?? "no reason supplied"}`);
+  if (!advanced) {
+    console.log(`    body: ${usage.text.slice(0, 350)}`);
+    return {};
   }
+  const cumulative = BigInt(usage.json.cumulative);
+  latestVoucherSignature = usage.json.voucherSignature;
+  check(cumulative === BigInt(built.service.rateAtomicPerRequest), `one successful review costs ${cumulative} atomic units`);
+  check(typeof latestVoucherSignature === "string" && /^[0-9a-f]{128}$/i.test(latestVoucherSignature), "the provider returned a 64-byte Ed25519 voucher signature");
+  check(typeof usage.json?.extraction?.summary === "string" && usage.json.extraction.summary.length > 0, "Groq returned a structured contract-review summary");
+  meterReadings.push({ round: 1, cumulative: cumulative.toString(), voucherSignature: latestVoucherSignature });
 
+  // Usage itself is off-chain: the on-chain watermark remains zero until close.
+  const afterReview = await rpc("getAccountInfo", [channelAddress, { encoding: "base64", commitment: "confirmed" }]);
+  const afterReviewData = Buffer.from(afterReview.value.data[0], "base64");
+  check(afterReviewData.readBigUInt64LE(20) === 0n, "the on-chain watermark is still zero after the AI request; no per-review settlement transaction was sent");
+  previous = cumulative;
   if (previous === 0n) {
     check(false, "nothing was metered, so there is no payout to check");
     return {};
   }
-
   // -------------------------------------------------------------------------
   // The close
   // -------------------------------------------------------------------------
 
-  const closeResponse = await postJson("/api/session", { action: "close", channel: channelAddress });
+  const closeResponse = await postJson("/api/session", { action: "close", channel: channelAddress, cumulativeAtomic: previous.toString(), voucherSignature: latestVoucherSignature });
   if (closeResponse.status !== 200) {
     check(false, `POST /api/session { close } returned ${closeResponse.status}: ${closeResponse.text.slice(0, 300)}`);
     return {};
@@ -617,10 +619,12 @@ async function probeRefusals() {
   const distributed = await postJson("/api/session", {
     action: "usage",
     channel: CHANNEL,
-    seconds: 5,
+    previousCumulativeAtomic: EXPECTED_SETTLED,
+    previousVoucherSignature: null,
+    documentText: SAMPLE_CONTRACT,
   });
-  check(distributed.status === 200, "metering an already-distributed channel answered 200");
-  check(distributed.json?.advanced === false, "it declined to advance the watermark");
+  check(distributed.status === 200, "checking an already-distributed channel answered 200");
+  check(distributed.json?.advanced === false, "it declined to meter a closed channel");
   check(
     /Distributed/i.test(distributed.json?.reason ?? ""),
     `it explained why: "${distributed.json?.reason}"`,

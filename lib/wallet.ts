@@ -163,17 +163,20 @@ function providerLike(value: unknown): WalletProvider | null {
     : null;
 }
 
-/** Resolve one explicitly selected wallet without accidentally using another extension. */
-export function getWalletProvider(id: WalletId): WalletProvider | null {
+/** Find a registered Wallet Standard wallet by the explicit picker choice. */
+function findStandardWallet(id: WalletId): StandardWallet | undefined {
+  // Do not filter by wallet.chains here. Some extensions report a chain list
+  // that reflects their current adapter configuration rather than every chain
+  // the installed wallet can sign. We still pass solana:devnet to the signing
+  // feature, and the wallet must reject an unsupported chain itself.
+  return standardWallets.find((wallet) => matchesWalletName(wallet.name, id));
+}
+
+/** Resolve an injected provider only after checking the registered Standard wallets. */
+function getInjectedWalletProvider(id: WalletId): WalletProvider | null {
   if (typeof window === "undefined") return null;
-
-  const standardWallet = getRegisteredStandardWallets().find(
-    (wallet) => matchesWalletName(wallet.name, id) &&
-      wallet.chains?.includes("solana:devnet") !== false,
-  );
-  if (standardWallet !== undefined) return standardWallet;
-
   const w = window as InjectedWindow;
+
   if (id === "phantom") {
     return providerLike(w.phantom?.solana) ??
       (w.solana?.isPhantom === true ? providerLike(w.solana) : null);
@@ -188,6 +191,47 @@ export function getWalletProvider(id: WalletId): WalletProvider | null {
     ((w.solana?.isOKXWallet === true || w.solana?.isOkxWallet === true)
       ? providerLike(w.solana)
       : null);
+}
+
+/** Synchronous detection for the wallet picker; connection uses the async resolver below. */
+export function getWalletProvider(id: WalletId): WalletProvider | null {
+  if (typeof window === "undefined") return null;
+  const standardWallet = getRegisteredStandardWallets().find(
+    (wallet) => matchesWalletName(wallet.name, id),
+  );
+  return standardWallet ?? getInjectedWalletProvider(id);
+}
+
+/**
+ * Resolve a wallet for an actual connection attempt.
+ *
+ * Browser extensions may register their Wallet Standard wallet asynchronously
+ * after the app-ready event. A synchronous lookup immediately falls back to the
+ * legacy injected provider, whose generic request() method is not a valid
+ * substitute for Solflare's Wallet Standard signAndSendTransaction feature.
+ * Re-announce app-ready and allow a short registration window before choosing
+ * that legacy fallback.
+ */
+export async function resolveWalletProvider(id: WalletId): Promise<WalletProvider | null> {
+  if (typeof window === "undefined") return null;
+
+  getRegisteredStandardWallets();
+  const alreadyRegistered = findStandardWallet(id);
+  if (alreadyRegistered !== undefined) return alreadyRegistered;
+
+  // Re-dispatch in case the first discovery occurred before the extension had
+  // attached its registration listener. Duplicate registrations are deduped.
+  window.dispatchEvent(new Event("wallet-standard:app-ready"));
+
+  // Wait up to 600 ms for an extension to dispatch wallet-standard:register-wallet.
+  // This is only on explicit connect, not normal page rendering or wallet-picker display.
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 25));
+    const registered = findStandardWallet(id);
+    if (registered !== undefined) return registered;
+  }
+
+  return getInjectedWalletProvider(id);
 }
 
 /** Options shown in the wallet picker; detect each brand independently. */

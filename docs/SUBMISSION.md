@@ -88,7 +88,7 @@ exercised on Devnet in
 | Client | Next.js 16, React 19, TypeScript, `@solana/kit` 8.4 |
 | Wallet selection | Phantom, Solflare, and OKX Wallet; uses Wallet Standard where available and brand-specific injected-provider fallback |
 | Hosting | Vercel (serverless API routes hold the Payment Channels signer and Groq API key server-side) |
-| CI | GitHub Actions — typecheck, 110 tests across 4 files, production build on every push |
+| CI | GitHub Actions — TypeScript check, automated protocol/session/wallet tests, production build, and responsive viewport inspection on pushes |
 | Tooling | Six devnet scripts under [`../tools/`](../tools/), plus a chain verifier and a deployment probe |
 
 We build the instructions directly from the program's own IDL rather than
@@ -118,8 +118,8 @@ reproducible command behind every row. In summary:
 Stated plainly, because a submission that lists only its successes is not
 evidence:
 
-- **The wallet chooser and connection-cancellation state have automated
-  browser checks, but no human has completed the full wallet handshake yet.**
+- **The wallet chooser and reconnect adapter have automated tests, but no human
+  has completed the full wallet handshake yet.**
   The deployment probe signs the `open` transaction itself. That stands in for
   wallet cryptography — the format, the slot, the signature — and never for an
   extension's real consent screen. Before submission, test connect, Devnet

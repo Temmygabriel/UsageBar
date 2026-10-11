@@ -1,12 +1,20 @@
 # Architecture
 
 **Build spec Section 60.**
-Last updated: 2026-10-05.
+Last updated: 2026-10-11.
 
 UsageBar is a Next.js application that drives a real Solana payment channel on
-Devnet. This document describes what runs where, which key signs what, and where
-the trust boundaries actually fall — as opposed to where they would fall if the
-diagram were drawn to look reassuring.
+Devnet. Its current metered service is a Groq-powered contract-review request,
+with cumulative usage and voucher state stored durably in Upstash Redis until
+settlement. This document describes what runs where, which key signs what, and
+where the trust boundaries actually fall — as opposed to where they would fall
+if the diagram were drawn to look reassuring.
+
+The browser remembers only the selected wallet ID (never wallet secrets) and
+attempts a silent reconnect after reload. When connection is restored, an open
+channel for that wallet is read from the chain and the durable meter state is
+restored. A verified settled tab can be replaced in the UI with a new tab through
+**Authorize another tab**, without refreshing or disconnecting the wallet.
 
 ---
 

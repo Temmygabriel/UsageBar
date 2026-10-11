@@ -96,15 +96,18 @@ amounts matter, that would be the reason to separate the roles and hold the
 
 ## 6. The wallet handshake has never been run by a human
 
-**This is the largest unverified surface in the system.** `open` is signed in the
-visitor's browser, and the bridge tries Wallet Standard first, then the legacy
-`request` form. Both paths are written and reviewed; neither has been exercised
-from a real browser with a real extension.
+**This remains the largest unverified surface in the system.** The Wallet Standard
+app-ready event now includes the registration API required by wallet extensions,
+and the app attempts a silent reconnect for the previously selected wallet.
+Wallet Standard connect receives `{ silent: true }`; legacy Phantom receives
+`{ onlyIfTrusted: true }`. Other legacy providers without a documented safe silent
+path fall back to the manual Connect wallet control instead of being called
+silently on page load.
 
-It is also the one path CI structurally cannot cover — it needs a browser and a
-wallet, not a Node process. This is stated in the interface's own status text and
-in [`CLAIM_STATUS.md`](CLAIM_STATUS.md), and it is the first thing to close
-before the demo.
+These adapter paths have automated test coverage, but a real human has not yet
+completed connection, opening, two AI reviews, settlement, a second session, and
+reload/reconnect in a browser with a real extension. CI cannot prove that consent
+screen or the installed extension's behavior. This remains a required demo gate.
 
 ---
 

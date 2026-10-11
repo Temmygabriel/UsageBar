@@ -68,11 +68,11 @@ jobs:
           USAGEBAR_BASE_URL: http://127.0.0.1:3000
           USAGEBAR_ARTIFACT_DIR: artifacts/viewport-inspection/local
 
-      - name: Inspect Vercel branch preview at required viewport widths
+      - name: Inspect the deployed Vercel production alias at required viewport widths
         continue-on-error: true
         run: node scripts/check-responsive.mjs
         env:
-          USAGEBAR_BASE_URL: https://usagebar-git-fix-metered-extracti-c59c38-temmygabriels-projects.vercel.app
+          USAGEBAR_BASE_URL: https://usagebar.vercel.app
           USAGEBAR_ARTIFACT_DIR: artifacts/viewport-inspection/vercel-preview
 
       - name: Upload viewport screenshots and report

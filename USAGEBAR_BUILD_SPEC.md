@@ -1,21 +1,21 @@
 # USAGEBAR BUILD SPEC
 ## Colosseum Crypto World's Fair — Evidence-First Full Build Contract
 
-**Version:** 1.1  
-**Date:** 5 October 2026  
+**Version:** 1.2  
+**Last updated:** 11 October 2026  
 **Product:** UsageBar  
 **Primary ecosystem:** Solana  
 **Core protocol:** Solana Payment Channels  
 **Build constraint:** $0 core path  
 **Developer machine constraint:** Windows, 8 GB RAM  
 **Primary engineering model:** real-first, evidence-first, phase-gated  
-**Current implementation status:** Not started / protocol viability gate required
+**Current implementation status:** Built and deployed on Devnet; protocol evidence exists; human browser-wallet walkthrough and submission media remain critical.
 **Visual reference:** Visual Reference Image 2 is locked as the primary art-direction target (see Section 0C).
 **Audit-first mode:** DeepSeek/Claude Code must perform the Section 0A report before any implementation work.
 
 ---
 
-# 0A. MANDATORY FIRST TASK — READ THIS PROMPT FIRST
+# 0A. HISTORICAL PHASE GATE — INITIAL AUDIT BEFORE IMPLEMENTATION
 
 ## IMPORTANT OPERATING MODE
 
@@ -23,9 +23,9 @@ You are the coding agent for my Colosseum Crypto World's Fair hackathon project.
 
 This file is `USAGEBAR_BUILD_SPEC.md`.
 
-**DO NOT START CODING YET.**
+**HISTORICAL INITIAL-GATE INSTRUCTION: DO NOT START IMPLEMENTATION BEFORE THE SPEC AUDIT. That first audit phase is complete.**
 
-Your first job is to **READ AND AUDIT THE ENTIRE SPECIFICATION**, then give me a report.
+The original coding agent's first task was to **READ AND AUDIT THE ENTIRE SPECIFICATION**, then report. This audit gate is complete. For current work, inspect the existing implementation, current CI and evidence first; do not restart the project from zero.
 
 Do not:
 - install packages;
@@ -940,6 +940,15 @@ This amendment supersedes earlier camera-rental/timer passages in this document 
 - The live Vercel runtime requires GROQ_API_KEY. A GitHub Actions secret is not automatically available to a Vercel server function.
 - Do not send confidential documents. This is not legal advice. The TEST price is not a representation of Groq's token cost.
 - The usage amount remains explicitly off-chain until the close transaction is verified. Per-request voucher signatures must never be linked or labeled as Solana transaction signatures.
+
+### UX/lifecycle amendment — 11 October 2026
+
+- After verified settlement, the page must expose **Authorize another tab**. This returns the local display state to READY and clears the completed session display without disconnecting the wallet or mutating the already-settled on-chain account.
+- The selected wallet ID may be persisted locally; never persist wallet secrets or claim a wallet is connected until the extension confirms it.
+- On reload, attempt a silent reconnect using Wallet Standard's `silent` option or legacy Phantom's `onlyIfTrusted` option. Do not trigger a fresh approval popup from a page-load effect. If silent reconnection is unsupported or not previously trusted, leave manual Connect wallet available.
+- After successful reconnect, resume the remembered address's still-open channel using live chain state and durable Upstash meter state; never open a new channel automatically.
+- Explicit Disconnect clears the saved wallet preference but does not close or cancel an open on-chain channel.
+- These behaviors require a real extension walkthrough before any claim of end-to-end wallet success.
 
 # 3. PRODUCT LOCK
 

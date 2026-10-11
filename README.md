@@ -46,7 +46,7 @@ Example: approve a 50 TEST cap; if the session uses 6.25 TEST, the provider rece
 
 **<https://usagebar.vercel.app>**
 
-Choose Phantom, Solflare, or OKX Wallet and set it to Devnet. The app can give the selected wallet free test SOL and TEST tokens if it is empty. Choose a maximum, connect, and sign the escrow deposit yourself. Then start contract review, run the supplied sample (or paste public, non-confidential text), inspect the returned AI summary, and repeat as needed. Each successful review adds 1.00 TEST to an off-chain signed voucher. Close & settle to submit the latest voucher, pay the used amount, and return the unused balance. A human browser walkthrough is still required to verify a real wallet's connection, signing, and settlement behavior.
+Choose Phantom, Solflare, or OKX Wallet and set it to Devnet. The app can give the selected wallet free test SOL and TEST tokens if it is empty. Choose a maximum, connect, and sign the escrow deposit yourself. Then start contract review, run the supplied sample (or paste public, non-confidential text), inspect the returned AI summary, and repeat as needed. Each successful review adds 1.00 TEST to an off-chain signed voucher. Close & settle to submit the latest voucher, pay the used amount, and return the unused balance. After settlement, click **Authorize another tab** to begin another paid session without refreshing. On a later page load, UsageBar attempts to silently reconnect the previously selected wallet where the installed adapter supports it; otherwise manual reconnect remains available. A human browser walkthrough is still required to verify real wallet connection, signing, repeated-session, and settlement behavior.
 
 Nothing on that site has any value. It is Devnet.
 
@@ -163,7 +163,7 @@ invariants, including what an attacker who controls the service still cannot do.
 ## Tests
 
 ```bash
-npm run test        # 110 tests across 4 files
+npm run test        # Run the current automated test suite
 npm run typecheck
 ```
 

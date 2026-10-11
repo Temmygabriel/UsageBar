@@ -1,6 +1,6 @@
 # UsageBar — Progress Log
 
-**Last updated:** 2026-10-09
+**Last updated:** 2026-10-11
 **Submission deadline:** 2026-10-12
 **Repo:** <https://github.com/Temmygabriel/UsageBar>
 **Build spec:** `USAGEBAR_BUILD_SPEC.md`
@@ -9,6 +9,10 @@
 > The authoritative record of what is *proven* is
 > [`docs/CLAIM_STATUS.md`](docs/CLAIM_STATUS.md). If the two ever disagree,
 > CLAIM_STATUS wins and this file is wrong.
+>
+> Entries below retain their original dated context. The current state and action
+> list are summarized at the top; do not follow old “deploy first” or “not started”
+> notes as instructions for the present build.
 
 ---
 
@@ -73,8 +77,9 @@ transaction itself, and the cluster accepted it — but never for Phantom's
 consent screen. That is the last unverified surface and the one CI structurally
 cannot cover.
 
-**CI is green** — typecheck, 110 tests across 4 files, and a production build.
-That is the whole pipeline, and it is the only compiler available here.
+The baseline passed CI before the current wallet/lifecycle patch. The new patch is
+not release-ready until the latest commit passes CI and its Vercel deployment is
+checked; do not reuse the earlier green status as proof for this new commit.
 
 ---
 
@@ -623,29 +628,36 @@ or `main` showed the sentinel and misled the first reading.
 is no separate treasury key to manage, and residual dust is recoverable rather
 than burned.
 
-### Time
+### Time (historical note recorded 2026-10-05)
 
-Five days remain, and the application has not been started.
-
----
-
-## Next steps
-
-1. **Deploy to Vercel.** The account exists and the repository is already linked
-   to it; what is needed is a Vercel token so the deploy can be driven the same
-   way the GitHub work is. The deployment also needs `DEVNET_PAYER_KEYPAIR` and
-   `DEVNET_OPERATOR_KEYPAIR` set as environment variables, which is the whole
-   reason the token is worth having — it is the same handover as the GitHub one.
-2. **Run the demo from a real browser.** Connect, faucet, open, meter, close.
-   This is the one path CI cannot cover: it needs a real extension and a real
-   wallet, and the wallet handshake is written with two signing paths precisely
-   because that is the part most likely to differ between visitors.
-3. Exercise `withdrawPayer` and a distribution plan with real recipients, both
-   still UNVERIFIED, but neither blocks the application.
+Five days remained at the time of the original protocol investigation. The
+application was subsequently built, deployed, and probed; that old estimate is
+not the current project status.
 
 ---
 
-## The canonical run — written 2026-10-07, not yet executed
+## Remaining work before submission — updated 2026-10-11
+
+1. **Validate this patch.** Require fresh CI to pass TypeScript, automated tests,
+   production build and viewport checks; then confirm Vercel deployed the same
+   commit.
+2. **Run the real browser flow.** Connect Phantom or Solflare on Devnet, get test
+   funds if needed, authorize a small cap, open, run two real AI reviews, close
+   and settle. Verify the provider payment and customer refund on Explorer.
+   Click **Authorize another tab** and open another channel without a refresh.
+   Reload and verify that the saved wallet reconnects silently where supported.
+3. **Record two distinct submissions videos.** A two-to-three-minute founder / pitch
+   presentation and a product-demo video no longer than three minutes. The silent
+   demo clip alone is not the pitch presentation.
+4. **Complete the real submission form.** Add team and background information,
+   disclose pre-existing work accurately, and provide logo/graphic, go-to-market,
+   demand validation and distribution plans. Do not invent customers or traction.
+5. **Run the first-impression UX test** if time permits. `docs/UX_TEST.md` remains
+   NOT RUN; record actual participant answers, never manufacture them.
+
+---
+
+## The canonical run — executed and verified on 2026-10-07## The canonical run — written 2026-10-07, not yet executed
 
 Build spec Sections 25-29 ask for one uninterrupted pass through the whole
 lifecycle, named `canonical-usagebar-devnet-001`, with an evidence artifact per

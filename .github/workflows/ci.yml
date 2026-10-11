@@ -72,7 +72,7 @@ jobs:
         continue-on-error: true
         run: node scripts/check-responsive.mjs
         env:
-          USAGEBAR_BASE_URL: https://usagebar-git-fix-ui-branding-acce-07fa11-temmygabriels-projects.vercel.app
+          USAGEBAR_BASE_URL: https://usagebar-git-fix-metered-extracti-c59c38-temmygabriels-projects.vercel.app
           USAGEBAR_ARTIFACT_DIR: artifacts/viewport-inspection/vercel-preview
 
       - name: Upload viewport screenshots and report

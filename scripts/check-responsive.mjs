@@ -299,7 +299,7 @@ try {
           measurement.documentIconCount !== 1 ? "outline document icon is missing or duplicated inside Usage Tab" : null,
           !measurement.groqServiceDisclosure ? "Groq service disclosure is missing" : null,
           !measurement.contractIllustration.present ? "contract-review hero illustration is missing" : null,
-          !measurement.contractIllustration.accessibleArtworkHasPaths ? "contract-review hero illustration has no drawable SVG artwork" : null,
+          !measurement.contractIllustration.drawableArtworkHasPaths ? "contract-review hero illustration has no drawable SVG artwork" : null,
           overflow ? `horizontal overflow: document=${measurement.documentWidth}, body=${measurement.bodyWidth}, viewport=${width}` : null,
         ].filter(Boolean),
       });

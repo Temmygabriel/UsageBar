@@ -182,10 +182,20 @@ function getInjectedWalletProvider(id: WalletId): WalletProvider | null {
       (w.solana?.isPhantom === true ? providerLike(w.solana) : null);
   }
   if (id === "solflare") {
+    // Preserve the injected provider path that worked before the wallet chooser
+    // was introduced. Solflare may expose both window.solana and window.solflare;
+    // these are not guaranteed to be the same object or expose the same API.
+    // When window.solana explicitly identifies as Solflare, prefer that provider
+    // instead of sending a generic request() payload to another façade.
+    if (w.solana?.isSolflare === true) {
+      const brandedLegacyProvider = providerLike(w.solana);
+      if (brandedLegacyProvider !== null) return brandedLegacyProvider;
+    }
+
     const injected = w.solflare;
-    const direct = providerLike(injected);
     const nested = providerLike((injected as { solana?: WalletProvider } | undefined)?.solana);
-    return nested ?? direct ?? (w.solana?.isSolflare === true ? providerLike(w.solana) : null);
+    const direct = providerLike(injected);
+    return nested ?? direct;
   }
   return providerLike(w.okxwallet?.solana) ??
     ((w.solana?.isOKXWallet === true || w.solana?.isOkxWallet === true)

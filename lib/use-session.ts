@@ -233,7 +233,7 @@ export function useSession(): { state: SessionState; actions: SessionActions } {
 
     const walletOption = SUPPORTED_WALLETS.find((option) => option.id === walletId);
     const walletName = walletOption?.name ?? walletId;
-    const provider = getWalletProvider(walletId);
+    const provider = await resolveWalletProvider(walletId);
     if (provider === null) {
       setWallet({ status: "disconnected", address: null, name: null });
       setNotice({

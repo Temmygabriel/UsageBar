@@ -260,6 +260,14 @@ try {
       })(),
       documentIconCount: document.querySelectorAll('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]').length,
       groqServiceDisclosure: document.body.innerText.includes("Groq supplies real AI review"),
+      contractIllustration: (() => {
+        const node = document.querySelector(".contractArt svg");
+        const rect = node?.getBoundingClientRect();
+        return {
+          present: Boolean(node && rect && rect.width > 0 && rect.height > 0),
+          drawableArtworkHasPaths: Boolean(node && node.querySelector("path, rect, circle, text")),
+        };
+      })(),
     }));
 
     const overflow = measurement.documentWidth > width || measurement.bodyWidth > width;
@@ -271,7 +279,7 @@ try {
       && measurement.documentIconCount === 1
       && measurement.groqServiceDisclosure
       && measurement.contractIllustration.present
-      && measurement.contractIllustration.accessibleArtworkHasPaths
+      && measurement.contractIllustration.drawableArtworkHasPaths
       && !overflow;
 
     const screenshot = `${outputDir}/viewport-${String(width).padStart(4, "0")}.png`;
@@ -291,7 +299,7 @@ try {
           measurement.documentIconCount !== 1 ? "outline document icon is missing or duplicated inside Usage Tab" : null,
           !measurement.groqServiceDisclosure ? "Groq service disclosure is missing" : null,
           !measurement.contractIllustration.present ? "contract-review hero illustration is missing" : null,
-          !measurement.contractIllustration.accessibleArtworkHasPaths ? "contract-review hero illustration has no drawable artwork" : null,
+          !measurement.contractIllustration.accessibleArtworkHasPaths ? "contract-review hero illustration has no drawable SVG artwork" : null,
           overflow ? `horizontal overflow: document=${measurement.documentWidth}, body=${measurement.bodyWidth}, viewport=${width}` : null,
         ].filter(Boolean),
       });

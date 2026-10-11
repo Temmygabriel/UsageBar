@@ -62,6 +62,19 @@ Keep this key server-side. Never name it `NEXT_PUBLIC_GROQ_API_KEY`, commit it, 
 
 Groq's free plan has request/token limits; it is not unlimited or guaranteed to stay free forever. Only submit the supplied sample or public, non-confidential contract text. Groq receives the submitted text, and AI results are not legal advice.
 
+## Free off-chain meter storage setup
+
+UsageBar's production and preview API functions need a tiny durable store for the latest off-chain voucher. This prevents a serverless function restart or a stale browser value from changing which voucher gets settled. The store keeps only the channel's cumulative amount, signed voucher, and request count — **not** contract text or AI output.
+
+1. Open [Upstash Redis](https://console.upstash.com/redis) and create a database on the **Free** plan. The current free plan is listed at [Upstash pricing](https://upstash.com/pricing/redis); re-check its limits before relying on it.
+2. In the database details, copy its **REST URL** and **REST token**. Keep both private.
+3. In [UsageBar's Vercel environment settings](https://vercel.com/temmygabriels-projects/usagebar/settings/environment-variables), add these variables for **Production** and **Preview**:
+   - `UPSTASH_REDIS_REST_URL` — the database's REST URL.
+   - `UPSTASH_REDIS_REST_TOKEN` — the database's REST token.
+4. Confirm `GROQ_API_KEY` is also set in Vercel (the GitHub Actions secret named `groq_api` does not automatically reach Vercel functions), then redeploy.
+
+Do not put either Upstash credential or the Groq key in a `NEXT_PUBLIC_*` variable, source code, an issue, or chat. Until both the Groq key and Upstash meter store are configured in the Vercel runtime, UsageBar should refuse to open a new tab rather than pretend the AI service is ready.
+
 ## Demo Video
 
 Not recorded yet. This is honestly the last packaging item outstanding.

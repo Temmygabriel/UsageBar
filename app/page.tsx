@@ -111,6 +111,7 @@ export default function Page() {
   const ceiling = hasChannel ? BigInt(channel.deposit) : BigInt(selectedCeilingAtomic);
   const settled = usageAmount;
   const groqUnavailable = service !== null && !service.groqConfigured;
+  const meterStoreUnavailable = service !== null && !service.meterStoreConfigured;
 
   /**
    * Whether this wallet needs test funds before it can open a tab.
@@ -146,7 +147,9 @@ export default function Page() {
       ? "Get test funds"
       : groqUnavailable
         ? "Groq API not configured"
-        : "Authorize up to " + selectedCeiling + " TEST";
+        : meterStoreUnavailable
+          ? "Meter storage not configured"
+          : "Authorize up to " + selectedCeiling + " TEST";
 
   const onPrimary = (capAtomic: string) => {
     if (!connected) {
@@ -158,6 +161,7 @@ export default function Page() {
       void actions.fund();
       return;
     }
+    if (groqUnavailable || meterStoreUnavailable) return;
     void actions.open(capAtomic);
   };
 
@@ -165,7 +169,9 @@ export default function Page() {
     ? `Your wallet needs Devnet SOL and ${unit} before it can fund a deposit. Pressing the button above sends both; they have no real-world value.`
     : groqUnavailable && connected
       ? "The Groq key is not configured in this deployment. Add GROQ_API_KEY in Vercel before opening a tab; no deposit will be requested."
-      : null;
+      : meterStoreUnavailable && connected
+        ? "Off-chain voucher storage is not configured. Create a free Upstash Redis database and add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel; no deposit will be requested."
+        : null;
 
   const serviceMeta = service
     ? `${ratePerRequest(service.rateAtomicPerRequest, decimals)} TEST per successful Groq contract review`
@@ -410,7 +416,7 @@ export default function Page() {
             onStartService={actions.startService}
             onRunUsage={actions.runUsage}
             busyRequest={busy}
-            openDisabled={Boolean(connected && (!service || (!shortOnFunds && groqUnavailable)))}
+            openDisabled={Boolean(connected && (!service || (!shortOnFunds && (groqUnavailable || meterStoreUnavailable))))}
             onClose={actions.close}
             openLabel={openLabel}
             blockedReason={blockedReason}

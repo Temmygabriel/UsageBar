@@ -132,7 +132,7 @@ evidence:
 - **Demo-only pricing.** 1 TEST per successful review is illustrative, not Groq's actual token cost or validated commercial pricing.
 - **AI and privacy.** The output is not legal advice. Use sample/public documents only because contract text is sent to Groq's API.
 - **Runtime secret.** Vercel must have GROQ_API_KEY configured in its own environment variables; GitHub Actions secrets are not automatically injected into Vercel runtime functions.
-- **Off-chain state is browser-persisted.** The latest voucher signature and cumulative amount are stored locally to support refresh recovery. This is a hackathon prototype, not production billing infrastructure.
+- **Off-chain meter storage is a free-tier dependency.** Upstash Redis stores the provider-authoritative cumulative amount, voucher signature, and review count; the browser keeps a convenience copy for resume. Vercel must define `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` as well as `GROQ_API_KEY`. The prototype is not production billing infrastructure, and free-tier limits apply.
 - **Devnet only.** Test funds, no real economic value.
 
 ## Team

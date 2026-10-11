@@ -20,6 +20,8 @@ That is a **demo pricing rule**, not Groq's actual token price and not a guarant
 
 **Privacy warning:** the document text is sent to Groq's API. Use the included sample or public, non-confidential text only. Do not submit signed agreements, identity documents, commercial secrets, or other private material. Groq's current terms and free-plan policy govern submitted data; UsageBar does not change them.
 
+**Off-chain state:** Vercel functions are stateless, so UsageBar stores only the latest cumulative amount, the provider's voucher signature, and a review count in Upstash Redis. It does not store contract text or the AI response there. The Vercel runtime must define `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for both Preview and Production. Upstash's free-tier limits apply, and the application refuses to open new tabs when the store is unavailable.
+
 The live AI request is real when `GROQ_API_KEY` is configured in the Vercel runtime. Groq's free plan has rate/token limits and may return HTTP 429; a failed or malformed AI response does not return a voucher to the customer, so UsageBar does not add to the displayed used amount for that request. A free API tier is not an unlimited or permanent service guarantee.
 
 ---

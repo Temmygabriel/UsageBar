@@ -716,15 +716,19 @@ The product idea is simple:
 
 A customer opens one usage-payment tab with a maximum spending ceiling. The service records cumulative usage through signed vouchers. At the end of the session, the actual amount used is settled and the unused remainder is returned/recoverable.
 
-The first demo use case is:
+The implemented demo use case is:
 
-> **Camera rental**
+> **Groq-powered contract review**
+
+A customer authorizes a selectable maximum of 5, 10, 25, or 50 TEST, starts the service, and submits sample or public contract text. Each successful Groq review returns a structured analysis and adds one provider-signed cumulative voucher off-chain. The demo price is 1.00 TEST per successful review; it is a demonstration rule, not Groq's actual token cost. A failed or invalid AI response must not increase the used amount. On close, the latest voucher is submitted once, the channel is settled, and the unused deposit is returned.
 
 Example:
 
-- Maximum authorized: 50.00 test units
-- Actual usage: 12.40 test units
-- Unused remainder: 37.60 test units
+- Maximum authorized: 10.00 TEST
+- Three successful reviews: 3.00 TEST used
+- Unused remainder returned: 7.00 TEST
+
+TEST is a worthless Devnet token. This is a document-understanding demonstration, not legal advice. Only submit sample or public, non-confidential text because the content is sent to Groq.
 
 These amounts are **test/devnet values, not real Mainnet funds**.
 

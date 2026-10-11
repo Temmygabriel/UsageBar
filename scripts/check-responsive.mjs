@@ -261,7 +261,7 @@ try {
       documentIconCount: document.querySelectorAll('article[aria-label="Usage tab"] svg[viewBox="0 0 48 48"]').length,
       groqServiceDisclosure: document.body.innerText.includes("Groq supplies real AI review"),
       contractIllustration: (() => {
-        const node = document.querySelector(".contractArt svg");
+        const node = document.querySelector('section[aria-labelledby="hero-title"] svg[viewBox="0 0 520 300"]');
         const rect = node?.getBoundingClientRect();
         return {
           present: Boolean(node && rect && rect.width > 0 && rect.height > 0),

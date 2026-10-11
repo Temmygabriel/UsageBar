@@ -67,26 +67,32 @@ next section.
 
 ```
 Browser
-  │  1. POST { action: "open", address }        ──  the customer's public key
+  │  1. POST { action: "open", address }        ── the customer's public key
   ▼
 Next.js API
-  │  2. builds the `open` transaction, UNSIGNED
+  │  2. builds the `open` transaction, unsigned
   │     · derives the channel PDA from (payer, payee, mint, signer, salt, slot)
   │     · the customer is the fee payer
-  │     · the provider's key appears only as a *public* address in the seeds
   │  3. returns base64 wire bytes
   ▼
-Browser  ──  4. hands the bytes to the wallet extension, which signs and sends
-Browser  ──  5. POST { action: "usage", channel }
+Browser  ──  4. wallet extension signs and sends the deposit transaction
+Browser  ──  5. POST { action: "usage", channel, contractText }
   ▼
 Next.js API
-  │  6. signs a 50-byte cumulative voucher with DEVNET_OPERATOR_KEYPAIR
-  │     · off chain. no transaction, no fee, no wallet prompt.
-  │  7. places it in an Ed25519 precompile immediately before `settle`
-  │  8. sends with DEVNET_PAYER_KEYPAIR as fee payer
-  │  9. reads `settled` back from chain and returns that number
+  │  6. reads the channel and latest durable meter state from Upstash Redis
+  │  7. calls Groq and validates the structured contract-review response
+  │  8. only after a valid response, signs the next cumulative 50-byte
+  │     voucher with DEVNET_OPERATOR_KEYPAIR (off chain)
+  │  9. atomically stores the cumulative amount, voucher signature,
+  │     and successful-review count in Upstash Redis
   ▼
-Payment Channels
+Browser receives the review and updated usage state; no chain transaction
+is sent for an individual review.
+
+At close, the API submits the latest voucher's Ed25519 verification
+instruction with settleAndSeal. After confirmation it verifies the on-chain
+watermark, then distributes the funds: the provider receives the final
+metered amount and the customer receives the unused balance.
 ```
 
 **The provider private key never reaches the browser.** Three things enforce
@@ -167,15 +173,29 @@ it: a stale slot derives an address the program will not find.
 
 ### Meter (usage)
 
-The browser reports elapsed seconds. The server decides the amount, clamps it to
-the deposit ceiling, and refuses to move backwards. The customer's reported
-number can only ever bill them more of what they already authorized — it cannot
-cause a charge above the ceiling, and it cannot be used to bill someone else,
-because the channel address is the key to everything.
+The billable unit is one successful AI contract review, priced at **1.00 TEST**
+for this demo. The browser submits contract text to the UsageBar API; the server
+sends it to Groq, validates the structured response, and only then advances
+usage. A failed request or invalid model response must not add a billable unit.
 
-The returned `settled` is read back from chain after the transaction confirms.
-The interface displays that number and no other. There is no interpolation
-between reads and no client-side estimate of what the bill "should" be by now.
+For each successful review, the server reads the latest durable meter record
+from Upstash Redis, verifies the prior voucher state, signs the next cumulative
+voucher with `DEVNET_OPERATOR_KEYPAIR`, and atomically compare-and-sets the
+new cumulative amount, signature, and review count. This update is **off chain**:
+there is no Solana transaction, chain fee, or wallet prompt for each review.
+Redis is required because Vercel route handlers are stateless; in-memory state
+would be lost or diverge across invocations.
+
+The UI's `used` amount is the cumulative successful-review total. It is not
+the escrow deposit, and it must never be presented as an on-chain settled amount
+before close. A cumulative voucher cannot exceed the customer's escrowed cap.
+
+At close, the server submits the latest voucher's Ed25519 verification
+instruction alongside `settleAndSeal`. After that transaction confirms, it
+checks the on-chain watermark and then distributes the funds. The provider
+receives the final metered amount and the customer receives the unused balance.
+The interface may display **SETTLED** only after the close/settlement path has
+actually succeeded; on failure, it must not claim the channel is settled.
 
 ### Close
 
@@ -234,10 +254,10 @@ Two copies remain, for a real constraint rather than convenience:
 
 ## Configuration
 
-Every value below has a working default for Devnet. Only the two keypairs are
-required; without them the adapter answers **503 with a stated reason** rather
-than failing generically, so the interface can say what is missing instead of
-inventing a number.
+Protocol defaults below are for Devnet, but the deployed product also requires
+its AI provider and durable meter store. If Upstash is not configured, opening a
+new usage tab must be blocked before asking the wallet to deposit. If Groq is
+not configured, the review service is unavailable and must not issue a voucher.
 
 | Variable | Required | Default | What it is |
 |---|---|---|---|
@@ -247,7 +267,7 @@ inventing a number.
 | `TEST_MINT` | no | the verified test mint | the asset |
 | `TREASURY_OWNER` | no | the program's real devnet treasury | recovered from the deployed ELF |
 | `USAGEBAR_CEILING` | no | `50000000` (50 TEST) | the authorized ceiling |
-| `USAGEBAR_RATE_PER_SECOND` | no | `250000` (0.25 TEST) | the meter's rate |
+| Review price | fixed in application | `1.00 TEST` per successful review | demo pricing rule; not Groq's actual token cost |
 | `USAGEBAR_GRACE_PERIOD` | no | `60` | seconds; `0` is rejected by the program (error 201) |
 
 Keypairs are JSON arrays of 64 bytes, as `solana-keygen` writes them.

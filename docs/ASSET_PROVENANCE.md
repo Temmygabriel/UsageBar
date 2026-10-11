@@ -142,23 +142,21 @@ Until then the relevant `CLAIM_STATUS.md` row stays `UNVERIFIED`.
 
 ---
 
-## UsageBar UI branding assets — 2026-10-10
+## Current interface assets
 
-| Asset | Source | Status |
-|---|---|---|
-| UsageBar brand mark in header | Original inline SVG authored for this repository | Original project asset; no external source |
-| Browser favicon | `app/icon.svg`, original SVG using the same bar/meter motif | Original project asset; no external source |
-| Camera icon inside Usage Tab | Inline SVG authored for this repository | Original project asset; decorative only |
-| Landing hero camera scene | `public/camera-scene.webp` | Replacement asset is committed on `main`; user has visually confirmed the clean-image Vercel preview. Confirm the production `usagebar.vercel.app` deployment after the merge before treating it as the submitted version. |
-| Fonts | Fraunces, IBM Plex Sans, IBM Plex Mono via `next/font` | Existing font setup retained |
+The current product is the **Groq-powered contract-review** experience. The landing-page contract artwork is rendered by application code; it is not loaded from the old camera-concept image files.
 
-## Landing hero camera scene
+| Asset | Current status |
+|---|---|
+| UsageBar header wordmark | Original inline SVG in the application |
+| Browser favicon | `app/icon.svg`, original project SVG |
+| Usage Tab document icon | Inline SVG authored for this repository |
+| Contract illustration in landing hero | Inline SVG rendered by the current landing page |
+| `public/camera-scene.webp` | Removed from the submission branch: no current application-source reference found; belonged to an earlier camera-rental visual direction |
+| `public/camera-rental.jpg` | Removed from the submission branch: no current application-source reference found; belonged to an earlier camera-rental concept |
 
-- File: `public/camera-scene.webp`
-- Delivered size: **660 × 252 pixels**, matching the landing-page hero crop.
-- Source: generated photographic still-life based on the supplied camera/tabletop reference, center-cropped and resized to the intended hero dimensions.
-- Intended visual target: black mirrorless camera on warm oak, restrained cream card, subtle foliage at left, and natural daylight. No screenshot UI, fabricated text, watermark, or neon treatment.
-- Purpose: an atmospheric background layer beneath the landing-page proposition and three-step explanation. The live Usage Tab remains a separate foreground component.
-- Honesty: the scene is illustrative concept artwork, not a real rental listing or connected camera. Camera usage is simulated; Solana Devnet payment-channel behavior is separately real and must continue to be shown only from verified application/chain state.
-- External requests: none. The scene is served locally from the repository.
-- Verification boundary: responsive CI checks image loading and viewport layout, but does not by itself prove the production domain is serving the merged asset. Recheck the production URL after Vercel completes the main-branch deployment.
+The two camera-concept files were checked against the application source paths (`app/**/*.ts`, `app/**/*.tsx`, `app/**/*.css`, and `app/**/*.svg`) and no references were found. The current UI uses its contract illustration instead. Historical mentions in the build specification describe earlier concept exploration and are not a description of the submitted product.
+
+## Typography
+
+The application uses Fraunces for display text, IBM Plex Sans for interface text, and IBM Plex Mono for technical/proof text via `next/font`. Font files are not committed to the repository; Next.js self-hosts the selected fonts at build time.

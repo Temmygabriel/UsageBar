@@ -12,7 +12,7 @@ INFERRED   — follows from proven facts, but not directly demonstrated
 UNVERIFIED — not tested. This is the default. It is not a soft "probably fine".
 ```
 
-Last updated: **2026-10-11** (the six protocol/deployment evidence gates below remain valid, including the canonical run and the 71-check deployed-app probe. Since the previous update, the Wallet Standard app-ready registration handshake was corrected and tested, a post-settlement **Authorize another tab** action was added, and the app now attempts safe silent reconnection to the previously selected wallet. GitHub Actions run [38101010531](https://github.com/Temmygabriel/UsageBar/actions/runs/38101010531) passed typecheck, automated tests, build, and responsive viewport checks. **Human browser-wallet behavior remains UNVERIFIED.** Vercel reports `Deployment rate limited — retry in 24 hours` for the latest main commit, so the latest repeated-session/reconnect UI patch is not confirmed live on the production alias as of this update.)
+Evidence snapshot last reviewed: **2026-10-11**. The protocol artifacts and historical 71-check HTTP/API probe remain evidence for those recorded runs, not a guarantee about the current production alias. GitHub Actions run [38101010531](https://github.com/Temmygabriel/UsageBar/actions/runs/38101010531) passed the then-current typecheck, automated tests, build, and responsive viewport checks. The repeated-session and silent-reconnect changes have automated-test coverage, but **human browser-wallet behavior remains UNVERIFIED**. A later Vercel deployment attempt was reported rate-limited; unless a newer live deployment has been checked, do not assume the latest source is running at the production URL.
 
 ---
 
@@ -172,7 +172,7 @@ over raw JSON-RPC rather than the application's own client.
 |---|---|
 | The application deploys to Vercel and reaches devnet RPC | **PROVEN** — the deployed serverless functions read chain state and land transactions |
 | The deployment holds working server-side keys | **PROVEN** — it signed and submitted two faucet transfers that both reached `finalized` |
-| The faucet moves real money | **PROVEN** — a fresh wallet went `0 → 50000000` lamports and gained a token account holding `100000000` atomic units, read back from chain |
+| The faucet transfers Devnet assets | **PROVEN** — a fresh wallet received `50000000` lamports of Devnet SOL and a token account holding `100000000` atomic units of the project test token, read back from chain; neither has real-world value |
 | The deployment derives a channel address and returns an unsigned transaction | **PROVEN** — channel `BFFqXPygJsBkGWQoGGowR4qgAtuSuRYnAsegp5oeT1Vt`, in a version-0 message with one required signature |
 | The transaction it builds is one a wallet can actually sign and land | **PROVEN** — signed by the probe and accepted by the cluster as tx `NqVoKGt3ymR4EviCE5VSfPpoEUAKBymgKKRfmvkATibjuxpS5u83LSBqdqnF6HbRGxZJp66onHDTjSLk9EqvnX8` |
 | The customer's deposit leaves their wallet for escrow | **PROVEN** — the customer's balance went `100000000 → 50000000` while the escrow account held `50000000`; the channel on chain is 256 bytes, discriminator `1`, status `0`, with the customer recorded as payer |

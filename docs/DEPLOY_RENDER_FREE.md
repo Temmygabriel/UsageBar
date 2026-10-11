@@ -2,7 +2,7 @@
 
 ## Why this exists
 
-The Vercel deployment for the 11 October 2026 repeated-session and silent-wallet-reconnect changes was rate-limited with a message to retry in 24 hours. That cooldown reaches 12 October, the listed submission date; the exact submission cutoff timezone is not stated in this status, so do not assume the Vercel retry will be available in time. This is an optional, zero-cost fallback host so the updated source can be demonstrated without relying on that cooldown.
+A Vercel deployment attempt for the 11 October 2026 repeated-session and silent-wallet-reconnect changes was reported as rate-limited with a 24-hour retry message. This document does not establish whether that cooldown has since cleared. Verify the actual Vercel deployment status before relying on it. Render is an optional fallback, not the current production host.
 
 The fallback is **not live just because this file exists**. A service must be created in the Render dashboard, its five secrets entered privately, and its deployment verified.
 

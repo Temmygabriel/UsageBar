@@ -154,7 +154,7 @@ more in this file than a question that was quietly helped along.
 
 ## Related
 
-- [`CLAIM_STATUS.md`](CLAIM_STATUS.md) — what is proven about the protocol and
+- [`CLAIM_STATUS.md`](../CLAIM_STATUS.md) — what is proven about the protocol and
   the deployment, and what is not
-- [`SUBMISSION.md`](SUBMISSION.md) — the honest-limitations section, which is
+- [`SUBMISSION.md`](../SUBMISSION.md) — the honest-limitations section, which is
   where an unrun UX test is already listed

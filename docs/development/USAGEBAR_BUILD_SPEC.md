@@ -1,4 +1,7 @@
 # USAGEBAR BUILD SPEC
+
+> Repository location: `docs/development/USAGEBAR_BUILD_SPEC.md`. File paths mentioned in this specification are generally relative to the repository root unless stated otherwise.
+
 ## Colosseum Crypto World's Fair — Evidence-First Full Build Contract
 
 **Version:** 1.2  
@@ -2878,7 +2881,7 @@ Pass target:
 
 Record test results in:
 
-`docs/UX_TEST.md`
+`docs/development/UX_TEST_PLAN.md`
 
 Do not manufacture positive answers.
 

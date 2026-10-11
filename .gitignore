@@ -21,14 +21,12 @@ blob-report/
 # production
 .vercel
 
-# ===== SECRETS AND LOCAL-ONLY FILES (Section 55/56 of the build spec) =====
-# NEVER commit any of these.
+# Secrets and local-only files
+# Never commit environment values. Keep .env.example templates trackable.
 .env
-.env.local
-.env.*.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!.env.*.example
 
 # wallets and keys
 local-wallet/
@@ -37,6 +35,18 @@ private-keys/
 keypair.json
 id.json
 *.pem
+
+# Local demo/video assets (keep the HyperFrames workspace outside this repository)
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.mp3
+*.raw
+captures/
+recordings/
+video-workspace/
+usagebar-demo-v1/
 
 # debug / machine-specific
 debug dumps/

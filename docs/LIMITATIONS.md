@@ -171,8 +171,9 @@ the evidence actually supports:
 
 - The protocol is the **real, deployed** Payment Channels program on Devnet, not
   a mock, a simulation, or a local validator.
-- Money genuinely moves. The proof offered throughout is not a transaction
-  signature but **balances changing accounts**: `1000000 → 999950` out of the
+- Devnet token balances genuinely change accounts. These are test assets with
+  no real-world value. The proof offered is not a transaction signature but
+  **balances changing accounts**: `1000000 → 999950` out of the
   customer's account, `0 → 50` into escrow, `21.5` to the provider and `+28.5`
   back to the customer on close, escrow drained to zero and the account reaped.
 - Every displayed result is read back **from chain** after the transaction
@@ -180,4 +181,4 @@ the evidence actually supports:
   rather than reporting success.
 
 See [`CLAIM_STATUS.md`](CLAIM_STATUS.md) for the full list with evidence, and
-[`../PROGRESS.md`](../PROGRESS.md) for the running log.
+[`CLAIM_STATUS.md`](CLAIM_STATUS.md) for the current claim ledger.

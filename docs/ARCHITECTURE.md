@@ -318,4 +318,4 @@ worse than one that names it.
 | [`LIMITATIONS.md`](LIMITATIONS.md) | what this does not do |
 | [`PROTOCOL_DISCOVERY.md`](PROTOCOL_DISCOVERY.md) | the instruction-level facts, from the program's own IDL |
 | [`ASSET_PROVENANCE.md`](ASSET_PROVENANCE.md) | the test mint's origin and verification |
-| [`../PROGRESS.md`](../PROGRESS.md) | the running build log |
+| [`CLAIM_STATUS.md`](CLAIM_STATUS.md) | current evidence status for protocol and deployment claims |

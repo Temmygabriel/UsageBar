@@ -1,5 +1,8 @@
 # UsageBar — Audit Report
 
+> **Historical discovery note:** this report contains an earlier camera-rental concept used during product exploration. The current UsageBar product is the Groq-powered contract-review demo described in the root [README](../README.md) and [Submission brief](SUBMISSION.md). The camera-rental scenario below is not the submitted product.
+
+
 **Build spec Section 0A deliverable.**
 **Date:** 2026-10-05 · **Status:** historical initial-audit report; no application code executed at the time.
 

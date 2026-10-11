@@ -8,8 +8,9 @@
 > [`PROGRESS.md`](PROGRESS.md).
 >
 > **This file contains no secrets and must never contain any.** Addresses below
-> are public. Private keys live only in `local-wallet/` (gitignored) and in
-> GitHub encrypted secrets.
+> are public. Private keys must exist only in gitignored local files or protected
+> deployment/CI secret stores (Vercel/Render environment variables and GitHub
+> encrypted secrets). Never add their values to this file or the repository.
 
 ---
 

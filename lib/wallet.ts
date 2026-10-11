@@ -15,13 +15,13 @@
  *                     signature as bytes. This is the modern interface and the
  *                     one to prefer.
  *   Legacy            `request({ method: "signAndSendTransaction" })`, which
- *                     takes the base58-encoded MESSAGE and returns a base58
- *                     signature string.
+ *                     takes a base58-encoded legacy MESSAGE and returns a
+ *                     base58 signature string.
  *
- * The two are not interchangeable, and which one is present depends on the
- * wallet and its version. Rather than pin the demo to one of them and discover
- * at judging time that the other is what a visitor has installed, both are
- * attempted in order.
+ * The browser-facing open transaction is deliberately compiled as legacy (it
+ * needs no address lookup tables), because this legacy request API cannot be
+ * assumed to accept a versioned-message payload. The two interfaces are not
+ * interchangeable, so both are attempted in order.
  *
  * This is the one part of the system that CI cannot cover: it needs a real
  * browser with a real extension, and no amount of unit testing substitutes for

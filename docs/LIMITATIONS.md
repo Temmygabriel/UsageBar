@@ -139,8 +139,8 @@ run.
   build on a test network.
 - **No commercial validation.** No merchant has been interviewed, no demand has
   been measured, and no pricing has been tested against a real cost of service.
-  The 0.25 TEST/second rate is chosen to make the meter visibly move during a
-  demo, not because it reflects either Groq's actual token cost or market willingness to pay.
+  Each successful contract review costs 1.00 TEST under the current demo rule.
+  This is not a claim about Groq's actual token cost or market willingness to pay.
 
 ---
 
